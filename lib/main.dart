@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:animate_do/animate_do.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'screens/tests/spiral_test_screen.dart';
 import 'screens/tests/voice_test_screen.dart';
+import 'screens/tests/gait_test_screen.dart';
+import 'screens/tests/tapping_test_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -474,10 +475,10 @@ class HomePage extends StatelessWidget {
                           description: 'Análisis de movimiento',
                           color: const Color(0xFF10B981),
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Próximamente disponible'),
-                                behavior: SnackBarBehavior.floating,
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const GaitTestScreen(),
                               ),
                             );
                           },
@@ -491,10 +492,10 @@ class HomePage extends StatelessWidget {
                           description: 'Coordinación motora',
                           color: const Color(0xFFF59E0B),
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Próximamente disponible'),
-                                behavior: SnackBarBehavior.floating,
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TappingTestScreen(),
                               ),
                             );
                           },
@@ -502,6 +503,7 @@ class HomePage extends StatelessWidget {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 32),
 
                   // Gráfico de progreso

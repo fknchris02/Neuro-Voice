@@ -4,7 +4,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 class VoiceTestScreen extends StatefulWidget {
@@ -38,7 +37,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   double _voiceQuality = 0.0;  // Calidad general (0-100)
 
   // Análisis en tiempo real
-  List<double> _amplitudeHistory = [];
+  final List<double> _amplitudeHistory = [];
   double _currentAmplitude = 0.0;
 
   // Animaciones

@@ -4,6 +4,8 @@
 <dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>Necesitamos acceso al micrófono para analizar tu voz</string>
+    <key>NSMotionUsageDescription</key>
+    <string>Necesitamos acceso a los sensores de movimiento para analizar tu marcha</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
