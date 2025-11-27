@@ -4,7 +4,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '/models/test_result.dart';
 import '/services/database_helper.dart';
 
@@ -19,6 +21,9 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  // URL de la API
+  static const String apiUrl = 'http://192.168.0.2:5001/predict_parkinson';
+
   // Estados del test
   bool _isRecording = false;
   bool _hasRecording = false;
@@ -26,23 +31,19 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   bool _testCompleted = false;
   bool _isPlaying = false;
 
-  // Datos de análisis
+  // Datos de grabación
   String? _recordingPath;
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
 
-  // Métricas de voz
-  double _jitter = 0.0;        // Variabilidad de frecuencia
-  double _shimmer = 0.0;       // Variabilidad de amplitud
-  double _avgAmplitude = 0.0;  // Amplitud promedio
-  int _silencePeriods = 0;     // Períodos de silencio
-  double _voiceQuality = 0.0;  // Calidad general (0-100)
+  // Resultado del servidor
+  double? _probabilidad;
+  String? _mensaje;
+  String? _color;
+  bool? _alertaBiomarcadores;
+  List<dynamic>? _detalles;
 
-  // Análisis en tiempo real
-  final List<double> _amplitudeHistory = [];
-  double _currentAmplitude = 0.0;
-
-  // Animaciones
+  // Animación
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -70,15 +71,13 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
 
   Future<void> _checkPermissions() async {
     final status = await Permission.microphone.request();
-    if (!status.isGranted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Se requiere permiso de micrófono para continuar'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+    if (!status.isGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Se requiere permiso de micrófono'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -86,13 +85,13 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
     try {
       if (await _audioRecorder.hasPermission()) {
         final directory = await getApplicationDocumentsDirectory();
-        final path = '${directory.path}/voice_test_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        final path = '${directory.path}/voice_test_${DateTime.now().millisecondsSinceEpoch}.wav';
 
         await _audioRecorder.start(
           const RecordConfig(
-            encoder: AudioEncoder.aacLc,
+            encoder: AudioEncoder.wav,
             sampleRate: 44100,
-            bitRate: 128000,
+            numChannels: 1,
           ),
           path: path,
         );
@@ -102,38 +101,13 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
           _hasRecording = false;
           _recordingPath = path;
           _recordingDuration = Duration.zero;
-          _amplitudeHistory.clear();
         });
 
-        _startAmplitudeMonitoring();
         _startTimer();
       }
     } catch (e) {
       _showError('Error al iniciar grabación: $e');
     }
-  }
-
-  void _startAmplitudeMonitoring() {
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (!_isRecording) {
-        timer.cancel();
-        return;
-      }
-
-      _audioRecorder.getAmplitude().then((amplitude) {
-        if (mounted && _isRecording) {
-          setState(() {
-            _currentAmplitude = amplitude.current.clamp(-60.0, 0.0);
-            _amplitudeHistory.add(_currentAmplitude);
-
-            // Mantener solo los últimos 50 valores
-            if (_amplitudeHistory.length > 50) {
-              _amplitudeHistory.removeAt(0);
-            }
-          });
-        }
-      });
-    });
   }
 
   void _startTimer() {
@@ -156,85 +130,76 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
         _hasRecording = true;
       });
 
-      // Analizar automáticamente después de grabar
-      await _analyzeRecording();
+      // Enviar a la API automáticamente
+      await _sendToAPI();
     } catch (e) {
       _showError('Error al detener grabación: $e');
     }
   }
 
-  Future<void> _analyzeRecording() async {
-    if (_recordingPath == null || _amplitudeHistory.isEmpty) return;
-
-    setState(() {
-      _isAnalyzing = true;
-    });
-
-    // Simular análisis con delay
-    await Future.delayed(const Duration(seconds: 2));
-
-    // Calcular métricas basadas en los datos recopilados
-    _calculateVoiceMetrics();
-
-    setState(() {
-      _isAnalyzing = false;
-      _testCompleted = true;
-    });
-  }
-
-  void _calculateVoiceMetrics() {
-    if (_amplitudeHistory.isEmpty) return;
-
-    // 1. Calcular amplitud promedio
-    _avgAmplitude = _amplitudeHistory.reduce((a, b) => a + b) / _amplitudeHistory.length;
-
-    // 2. Calcular Shimmer (variabilidad de amplitud)
-    double sumSquaredDiff = 0;
-    for (int i = 1; i < _amplitudeHistory.length; i++) {
-      double diff = _amplitudeHistory[i] - _amplitudeHistory[i - 1];
-      sumSquaredDiff += diff * diff;
-    }
-    double variance = sumSquaredDiff / (_amplitudeHistory.length - 1);
-    _shimmer = math.sqrt(variance).clamp(0.0, 10.0);
-
-    // 3. Calcular Jitter (variabilidad de frecuencia - simulado)
-    // En un análisis real, esto requeriría FFT del audio
-    List<double> intervals = [];
-    for (int i = 1; i < _amplitudeHistory.length; i++) {
-      if (_amplitudeHistory[i] > -40 && _amplitudeHistory[i-1] < -40) {
-        intervals.add(i.toDouble());
-      }
+  Future<void> _sendToAPI() async {
+    if (_recordingPath == null) {
+      _showError('No hay grabación disponible');
+      return;
     }
 
-    if (intervals.length > 1) {
-      List<double> intervalDiffs = [];
-      for (int i = 1; i < intervals.length; i++) {
-        intervalDiffs.add((intervals[i] - intervals[i-1]).abs());
+    setState(() => _isAnalyzing = true);
+
+    try {
+      final file = File(_recordingPath!);
+      if (!await file.exists()) {
+        throw Exception('El archivo de audio no existe');
       }
-      double avgInterval = intervalDiffs.reduce((a, b) => a + b) / intervalDiffs.length;
-      double jitterSum = 0;
-      for (var diff in intervalDiffs) {
-        jitterSum += (diff - avgInterval).abs();
+
+      // Crear petición
+      var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          _recordingPath!,
+          filename: 'voice_test.wav',
+        ),
+      );
+
+      print('📤 Enviando audio a: $apiUrl');
+
+      // Enviar
+      var streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => throw TimeoutException('Timeout'),
+      );
+
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('📥 Código: ${response.statusCode}');
+      print('📥 Respuesta: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+
+        setState(() {
+          _probabilidad = (jsonResponse['probabilidad'] ?? 0.0).toDouble();
+          _mensaje = jsonResponse['mensaje'] ?? 'Análisis completado';
+          _color = jsonResponse['color'] ?? 'verde';
+          _alertaBiomarcadores = jsonResponse['alerta_biomarcadores'] ?? false;
+          _detalles = jsonResponse['detalles'] ?? [];
+
+          _isAnalyzing = false;
+          _testCompleted = true;
+        });
+
+        print('✅ Resultado procesado correctamente');
+      } else {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
       }
-      _jitter = (jitterSum / intervalDiffs.length).clamp(0.0, 10.0);
-    } else {
-      _jitter = 0.0;
+    } on TimeoutException {
+      _showError('Tiempo de espera agotado');
+      setState(() => _isAnalyzing = false);
+    } catch (e) {
+      print('❌ Error: $e');
+      _showError('Error: $e');
+      setState(() => _isAnalyzing = false);
     }
-
-    // 4. Contar períodos de silencio
-    _silencePeriods = 0;
-    for (int i = 0; i < _amplitudeHistory.length; i++) {
-      if (_amplitudeHistory[i] < -50) {
-        _silencePeriods++;
-      }
-    }
-
-    // 5. Calcular calidad de voz (inversamente proporcional a shimmer y jitter)
-    double shimmerScore = (10 - _shimmer) * 10; // 0-100
-    double jitterScore = (10 - _jitter) * 10;   // 0-100
-    double amplitudeScore = (_avgAmplitude + 60) * 1.67; // -60 a 0 -> 0 a 100
-
-    _voiceQuality = ((shimmerScore + jitterScore + amplitudeScore) / 3).clamp(0.0, 100.0);
   }
 
   Future<void> _playRecording() async {
@@ -249,9 +214,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
         setState(() => _isPlaying = true);
 
         _audioPlayer.onPlayerComplete.listen((_) {
-          if (mounted) {
-            setState(() => _isPlaying = false);
-          }
+          if (mounted) setState(() => _isPlaying = false);
         });
       }
     } catch (e) {
@@ -265,12 +228,11 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       _testCompleted = false;
       _recordingPath = null;
       _recordingDuration = Duration.zero;
-      _amplitudeHistory.clear();
-      _jitter = 0.0;
-      _shimmer = 0.0;
-      _avgAmplitude = 0.0;
-      _silencePeriods = 0;
-      _voiceQuality = 0.0;
+      _probabilidad = null;
+      _mensaje = null;
+      _color = null;
+      _alertaBiomarcadores = null;
+      _detalles = null;
     });
   }
 
@@ -281,6 +243,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
           content: Text(message),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
         ),
       );
     }
@@ -299,7 +262,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Test de Voz'),
+        title: const Text('Test de Voz IA'),
         actions: [
           if (_hasRecording && !_testCompleted)
             IconButton(
@@ -338,13 +301,11 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Visualización de grabación
                   if (_isRecording || _hasRecording)
-                    _buildRecordingVisualizer(),
+                    _buildTimer(),
 
                   const SizedBox(height: 24),
 
-                  // Área de control principal
                   if (!_testCompleted)
                     _buildRecordingControls()
                   else
@@ -360,91 +321,53 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
 
   String _getInstructionText() {
     if (_isRecording) {
-      return 'Di "AAAAA" de forma sostenida por 5-10 segundos';
-    } else if (_hasRecording && !_testCompleted) {
-      return 'Grabación lista. Presiona analizar para ver resultados';
+      return 'Di "AAAAA" sostenido por 5-10 segundos';
+    } else if (_isAnalyzing) {
+      return 'Analizando con Inteligencia Artificial...';
     } else if (_testCompleted) {
       return 'Análisis completado';
     } else {
-      return 'Presiona el micrófono para comenzar a grabar';
+      return 'Presiona el micrófono para comenzar';
     }
   }
 
-  Widget _buildRecordingVisualizer() {
+  Widget _buildTimer() {
     return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
-          // Tiempo de grabación
           Text(
             _formatDuration(_recordingDuration),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: Theme.of(context).textTheme.displayMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Visualización de onda
-          Expanded(
-            child: _isRecording
-                ? _buildWaveform()
-                : Center(
-              child: Icon(
-                Icons.check_circle,
-                size: 64,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
+          const SizedBox(height: 8),
+          Text(
+            _isRecording ? 'Grabando...' : 'Grabación completada',
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWaveform() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: List.generate(20, (index) {
-        double height = 20.0;
-
-        if (_amplitudeHistory.length > index) {
-          int historyIndex = math.max(0, _amplitudeHistory.length - 20 + index);
-          double amplitude = _amplitudeHistory[historyIndex];
-          height = ((amplitude + 60) / 60 * 80).clamp(10.0, 80.0);
-        }
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          width: 4,
-          height: height,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        );
-      }),
-    );
-  }
-
   Widget _buildRecordingControls() {
     return Column(
       children: [
-        // Botón principal de grabación
+        // Botón de grabar
         if (!_isRecording && !_hasRecording)
           ScaleTransition(
             scale: _pulseAnimation,
             child: GestureDetector(
               onTap: _startRecording,
               child: Container(
-                width: 120,
-                height: 120,
+                width: 140,
+                height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -463,73 +386,72 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.mic,
-                  size: 48,
-                  color: Colors.white,
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.mic, size: 56, color: Colors.white),
+                    SizedBox(height: 8),
+                    Text(
+                      'GRABAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
 
-        // Botón de detener grabación
+        // Botón de detener
         if (_isRecording)
-          Column(
-            children: [
-              GestureDetector(
-                onTap: _stopRecording,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.red,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+          GestureDetector(
+            onTap: _stopRecording,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.red,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
-                  child: const Icon(
-                    Icons.stop,
-                    size: 48,
-                    color: Colors.white,
+                ],
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.stop, size: 56, color: Colors.white),
+                  SizedBox(height: 8),
+                  Text(
+                    'DETENER',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Mínimo 5 segundos',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+            ),
           ),
 
-        // Controles de reproducción y análisis
+        const SizedBox(height: 16),
+
+        // Botón de reproducir
         if (_hasRecording && !_testCompleted && !_isAnalyzing)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _playRecording,
-                icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                label: Text(_isPlaying ? 'Detener' : 'Reproducir'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                ),
-              ),
-              const SizedBox(width: 16),
-              FilledButton.icon(
-                onPressed: _analyzeRecording,
-                icon: const Icon(Icons.analytics),
-                label: const Text('Analizar'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                ),
-              ),
-            ],
+          OutlinedButton.icon(
+            onPressed: _playRecording,
+            icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
+            label: Text(_isPlaying ? 'Detener' : 'Reproducir'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            ),
           ),
 
         // Indicador de análisis
@@ -539,8 +461,13 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                'Analizando grabación...',
+                'Analizando con IA...',
                 style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Procesando biomarcadores vocales',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
@@ -549,85 +476,147 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   }
 
   Widget _buildResults() {
+    final color = _getColorFromString(_color ?? 'verde');
+    final hasParkinson = (_probabilidad ?? 0) > 50 || (_alertaBiomarcadores ?? false);
+
     return Column(
       children: [
-        // Calidad general
-        _buildQualityIndicator(),
-
-        const SizedBox(height: 24),
-
-        // Métricas detalladas
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                title: 'Shimmer',
-                value: _shimmer.toStringAsFixed(2),
-                unit: '',
-                icon: Icons.graphic_eq,
-                color: _getShimmerColor(),
-                description: 'Variabilidad de amplitud',
-              ),
+        // Resultado principal
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [color, color.withOpacity(0.7)],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MetricCard(
-                title: 'Jitter',
-                value: _jitter.toStringAsFixed(2),
-                unit: '%',
-                icon: Icons.waves,
-                color: _getJitterColor(),
-                description: 'Variabilidad de frecuencia',
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                title: 'Amplitud',
-                value: _avgAmplitude.toStringAsFixed(1),
-                unit: 'dB',
-                icon: Icons.volume_up,
-                color: Colors.blue,
-                description: 'Volumen promedio',
+            ],
+          ),
+          child: Column(
+            children: [
+              Icon(
+                hasParkinson ? Icons.warning_rounded : Icons.check_circle_rounded,
+                size: 80,
+                color: Colors.white,
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _MetricCard(
-                title: 'Silencios',
-                value: _silencePeriods.toString(),
-                unit: '',
-                icon: Icons.volume_off,
-                color: Colors.orange,
-                description: 'Interrupciones detectadas',
+              const SizedBox(height: 16),
+              Text(
+                _mensaje ?? 'Análisis completado',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                'Probabilidad: ${_probabilidad?.toStringAsFixed(1) ?? '0'}%',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
 
         const SizedBox(height: 24),
 
-        // Evaluación
-        _buildAssessment(),
+        // Detalles biomarcadores
+        if (_detalles != null && _detalles!.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: color),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Biomarcadores Detectados',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ..._detalles!.map((detalle) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.arrow_right, size: 20, color: color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          detalle.toString(),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
 
         const SizedBox(height: 24),
 
-        // Botones de acción
+        // Recomendación
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Recomendación',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasParkinson
+                    ? 'Se detectaron posibles signos. Se recomienda consultar con un especialista para evaluación profesional.'
+                    : 'No se detectaron signos evidentes. Continúa con seguimiento periódico.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Botones
         Row(
           children: [
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _resetTest,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Repetir'),
+                label: const Text('Repetir Test'),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 50),
                 ),
               ),
             ),
@@ -638,7 +627,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
                 icon: const Icon(Icons.save),
                 label: const Text('Guardar'),
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 50),
                 ),
               ),
             ),
@@ -648,138 +637,22 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
     );
   }
 
-  Widget _buildQualityIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _getQualityColor(),
-            _getQualityColor().withOpacity(0.7),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _getQualityColor().withOpacity(0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Calidad de Voz',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_voiceQuality.toStringAsFixed(0)}%',
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getQualityLabel(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white.withOpacity(0.9),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAssessment() {
-    String assessment;
-    IconData icon;
-    Color color;
-
-    if (_shimmer < 3 && _jitter < 2) {
-      assessment = 'Parámetros vocales dentro de rango normal. No se detectan anomalías significativas.';
-      icon = Icons.check_circle;
-      color = Colors.green;
-    } else if (_shimmer < 5 && _jitter < 4) {
-      assessment = 'Variabilidad vocal leve detectada. Se recomienda seguimiento periódico.';
-      icon = Icons.warning;
-      color = Colors.orange;
-    } else {
-      assessment = 'Variabilidad vocal elevada detectada. Se recomienda consultar con un especialista.';
-      icon = Icons.error;
-      color = Colors.red;
+  Color _getColorFromString(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'rojo':
+        return Colors.red;
+      case 'naranja':
+        return Colors.orange;
+      case 'verde':
+        return Colors.green;
+      default:
+        return Colors.blue;
     }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Evaluación',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  assessment,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getShimmerColor() {
-    if (_shimmer < 3) return Colors.green;
-    if (_shimmer < 5) return Colors.orange;
-    return Colors.red;
-  }
-
-  Color _getJitterColor() {
-    if (_jitter < 2) return Colors.green;
-    if (_jitter < 4) return Colors.orange;
-    return Colors.red;
-  }
-
-  Color _getQualityColor() {
-    if (_voiceQuality > 70) return Colors.green;
-    if (_voiceQuality > 50) return Colors.orange;
-    return Colors.red;
-  }
-
-  String _getQualityLabel() {
-    if (_voiceQuality > 70) return 'Excelente';
-    if (_voiceQuality > 50) return 'Moderado';
-    return 'Requiere atención';
   }
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String minutes = twoDigits(duration.inMinutes.remainder(60));
-    String seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    return '${twoDigits(duration.inMinutes)}:${twoDigits(duration.inSeconds.remainder(60))}';
   }
 
   void _saveResults() async {
@@ -787,14 +660,12 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       final result = TestResult(
         testType: 'voice',
         timestamp: DateTime.now(),
-        overallScore: _voiceQuality,
+        overallScore: 100 - (_probabilidad ?? 0),
         metrics: {
-          'jitter': _jitter,
-          'shimmer': _shimmer,
-          'avgAmplitude': _avgAmplitude,
-          'silencePeriods': _silencePeriods.toDouble(),
-          'voiceQuality': _voiceQuality,
+          'probabilidad': _probabilidad ?? 0.0,
+          'alerta_biomarcadores': (_alertaBiomarcadores ?? false) ? 1.0 : 0.0,
         },
+        notes: _mensaje,
       );
 
       await DatabaseHelper.instance.insertTestResult(result);
@@ -802,7 +673,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Resultados guardados exitosamente'),
+            content: Text('✅ Resultados guardados'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -812,88 +683,11 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: $e'),
+            content: Text('Error: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String unit;
-  final IconData icon;
-  final Color color;
-  final String description;
-
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.icon,
-    required this.color,
-    required this.description,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Text(
-                  unit,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: color,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
