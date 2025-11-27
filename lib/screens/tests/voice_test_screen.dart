@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import '/models/test_result.dart';
+import '/services/database_helper.dart';
 
 class VoiceTestScreen extends StatefulWidget {
   const VoiceTestScreen({super.key});
@@ -780,15 +782,42 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
     return '$minutes:$seconds';
   }
 
-  void _saveResults() {
-    // TODO: Implementar guardado en base de datos
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Resultados guardados exitosamente'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.pop(context);
+  void _saveResults() async {
+    try {
+      final result = TestResult(
+        testType: 'voice',
+        timestamp: DateTime.now(),
+        overallScore: _voiceQuality,
+        metrics: {
+          'jitter': _jitter,
+          'shimmer': _shimmer,
+          'avgAmplitude': _avgAmplitude,
+          'silencePeriods': _silencePeriods.toDouble(),
+          'voiceQuality': _voiceQuality,
+        },
+      );
+
+      await DatabaseHelper.instance.insertTestResult(result);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Resultados guardados exitosamente'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

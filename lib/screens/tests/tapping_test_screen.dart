@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import '/models/test_result.dart';
+import '/services/database_helper.dart';
 
 class TappingTestScreen extends StatefulWidget {
   const TappingTestScreen({super.key});
@@ -803,14 +805,43 @@ class _TappingTestScreenState extends State<TappingTestScreen> with TickerProvid
     return 'Requiere atención';
   }
 
-  void _saveResults() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Resultados guardados exitosamente'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.pop(context);
+  void _saveResults() async {
+    try {
+      final result = TestResult(
+        testType: 'tapping',
+        timestamp: DateTime.now(),
+        overallScore: _coordination,
+        metrics: {
+          'tapsPerSecond': _tapsPerSecond,
+          'rhythm': _rhythm,
+          'precision': _precision,
+          'fatigue': _fatigue,
+          'coordination': _coordination,
+          'totalTaps': _tapCount.toDouble(),
+        },
+      );
+
+      await DatabaseHelper.instance.insertTestResult(result);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Resultados guardados exitosamente'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

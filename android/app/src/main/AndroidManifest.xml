@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <application
-        android:label="mi_segunda_app"
+        android:label="NeuroVoice"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

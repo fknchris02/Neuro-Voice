@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import '/models/test_result.dart';           // ⬅️ AGREGA ESTA
+import '/services/database_helper.dart';
 
 class SpiralTestScreen extends StatefulWidget {
   const SpiralTestScreen({super.key});
@@ -135,15 +137,42 @@ class _SpiralTestScreenState extends State<SpiralTestScreen> {
               tremor: _tremor,
               accuracy: _accuracy,
               onRetry: _startTest,
-              onSave: () {
-                // Guardar resultados
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Resultados guardados exitosamente'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                Navigator.pop(context);
+              onSave: () async {
+                // Guardar resultados en base de datos
+                try {
+                  final result = TestResult(
+                    testType: 'spiral',
+                    timestamp: DateTime.now(),
+                    overallScore: _accuracy,
+                    metrics: {
+                      'tremor': _tremor,
+                      'accuracy': _accuracy,
+                      'points': _points.length.toDouble(),
+                    },
+                  );
+
+                  await DatabaseHelper.instance.insertTestResult(result);
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Resultados guardados exitosamente'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al guardar: $e'),
+                        backgroundColor: Colors.red,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
               },
             )
           else if (!_isDrawing)

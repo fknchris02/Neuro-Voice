@@ -4,6 +4,8 @@ import 'package:pedometer/pedometer.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import '/models/test_result.dart';
+import '/services/database_helper.dart';
 
 class GaitTestScreen extends StatefulWidget {
   const GaitTestScreen({super.key});
@@ -783,14 +785,43 @@ class _GaitTestScreenState extends State<GaitTestScreen> with TickerProviderStat
     return 'Requiere atención';
   }
 
-  void _saveResults() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Resultados guardados exitosamente'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.pop(context);
+  void _saveResults() async {
+    try {
+      final result = TestResult(
+        testType: 'gait',
+        timestamp: DateTime.now(),
+        overallScore: _overallScore,
+        metrics: {
+          'cadence': _cadence,
+          'stability': _stability,
+          'symmetry': _symmetry,
+          'tremor': _tremor,
+          'stride': _stride,
+          'steps': _stepCount.toDouble(),
+        },
+      );
+
+      await DatabaseHelper.instance.insertTestResult(result);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Resultados guardados exitosamente'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

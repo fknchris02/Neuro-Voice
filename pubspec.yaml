@@ -55,7 +55,20 @@ dependencies:
   sensors_plus: ^4.0.2              # Acelerómetro y giroscopio
   pedometer: ^4.0.1                 # Contador de pasos
 
+  # Base de datos
+  sqflite: ^2.3.0
+  path: ^1.8.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logoNV1.jpeg"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logoNV1.jpeg"
+
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+
   flutter_test:
     sdk: flutter
 
@@ -78,7 +91,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/logoNV.jpg
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
