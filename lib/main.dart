@@ -847,6 +847,7 @@ class _EnhancedTestCard extends StatefulWidget {
   State<_EnhancedTestCard> createState() => _EnhancedTestCardState();
 }
 
+
 class _EnhancedTestCardState extends State<_EnhancedTestCard> {
   bool _isHovered = false;
 
@@ -883,13 +884,14 @@ class _EnhancedTestCardState extends State<_EnhancedTestCard> {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(16.0), // REDUCIDO: De 20 a 16 para evitar overflow
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween, // CAMBIO: Distribuye espacio sin forzar
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Icono
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10), // REDUCIDO: De 12 a 10
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -897,25 +899,38 @@ class _EnhancedTestCardState extends State<_EnhancedTestCard> {
                   child: Icon(
                     widget.icon,
                     color: Colors.white,
-                    size: 28,
+                    size: 24, // REDUCIDO: De 28 a 24
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  widget.title,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.description,
-                  style: GoogleFonts.inter(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 12,
-                  ),
+
+                // Texto (envuelto para evitar desbordamiento)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1, // Limita a 1 línea
+                      overflow: TextOverflow.ellipsis, // Pone ... si no cabe
+                      textScaler: const TextScaler.linear(1.0), // Evita que crezca demasiado con la config del sistema
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 15, // Ligeramente ajustado
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.description,
+                      maxLines: 2, // Limita a 2 líneas máximo
+                      overflow: TextOverflow.ellipsis,
+                      textScaler: const TextScaler.linear(1.0),
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 11, // Ligeramente ajustado
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

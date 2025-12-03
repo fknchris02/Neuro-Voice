@@ -21,7 +21,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // URL de la API
+  // URL DE LA API: Asegúrate de que el puerto sea el mismo que el del servidor (5001 según tu código Python)
   static const String apiUrl = 'http://192.168.0.2:5001/predict_parkinson';
 
   // Estados del test
@@ -31,7 +31,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   bool _isPlaying = false;
 
   // Control de grabaciones múltiples
-  int _currentRecording = 0; // 0, 1, 2 (para 3 grabaciones)
+  int _currentRecording = 0;
   static const int _totalRecordings = 3;
   List<String> _recordingPaths = [];
   List<Duration> _recordingDurations = [];
@@ -39,9 +39,15 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   Duration _currentDuration = Duration.zero;
   Timer? _recordingTimer;
 
-  // Resultados individuales y promedio
+  // --- VARIABLES PARA RESULTADOS ---
   List<Map<String, dynamic>> _resultadosIndividuales = [];
   double? _probabilidadPromedio;
+
+  // Nuevas variables para Jitter, Shimmer y HNR
+  double? _jitterPromedio;
+  double? _shimmerPromedio;
+  double? _hnrPromedio;
+
   String? _mensajeFinal;
   String? _colorFinal;
   bool? _alertaBiomarcadoresGlobal;
@@ -134,16 +140,12 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
           _isRecording = false;
         });
 
-        // Si ya tenemos las 3 grabaciones, analizamos
         if (_recordingPaths.length >= _totalRecordings) {
           await _analyzeAllRecordings();
         } else {
-          // Preparar para la siguiente grabación
           setState(() {
             _currentRecording++;
           });
-
-          // Pequeña pausa antes de la siguiente grabación
           await Future.delayed(const Duration(seconds: 1));
         }
       }
@@ -158,30 +160,37 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
     try {
       print('📤 Enviando 3 audios juntos al servidor...');
 
-      // Enviar TODOS los audios en UNA SOLA petición
       final resultado = await _sendMultipleAudiosToAPI(_recordingPaths);
 
       if (resultado != null) {
-        // Procesar el resultado único que ya contiene los promedios
         setState(() {
-          _probabilidadPromedio = (resultado['probabilidad'] ?? 0.0).toDouble();
+          // 1. Extraer Probabilidad y Mensajes
+          _probabilidadPromedio = (resultado['probabilidad_promedio'] ?? 0.0).toDouble();
           _mensajeFinal = resultado['mensaje'] ?? 'Análisis completado';
           _colorFinal = resultado['color'] ?? 'verde';
-          _alertaBiomarcadoresGlobal = resultado['alerta_biomarcadores'] ?? false;
+          _alertaBiomarcadoresGlobal = resultado['alerta_biomarcadores_global'] ?? false;
 
-          // Extraer detalles
-          if (resultado['detalles'] != null) {
-            _detallesGlobales = List<String>.from(resultado['detalles']);
+          // 2. Extraer DATOS TÉCNICOS (Jitter, Shimmer, HNR)
+          // El servidor devuelve estos nombres exactos según tu código Python
+          _jitterPromedio = (resultado['jitter_promedio'] ?? 0.0).toDouble();
+          _shimmerPromedio = (resultado['shimmer_promedio'] ?? 0.0).toDouble();
+          _hnrPromedio = (resultado['hnr_promedio'] ?? 0.0).toDouble();
+
+          // 3. Extraer Detalles (El servidor usa 'detalles_alertas_totales')
+          if (resultado['detalles_alertas_totales'] != null) {
+            _detallesGlobales = List<String>.from(resultado['detalles_alertas_totales']);
           }
 
-          // Guardar resultado completo para referencia
-          _resultadosIndividuales = [resultado];
+          // 4. Guardar muestras individuales si las necesitas
+          if (resultado['muestras_individuales'] != null) {
+            _resultadosIndividuales = List<Map<String, dynamic>>.from(resultado['muestras_individuales']);
+          }
 
           _isAnalyzing = false;
           _testCompleted = true;
         });
 
-        print('✅ Análisis completado exitosamente');
+        print('✅ Análisis completado. Jitter: $_jitterPromedio, Shimmer: $_shimmerPromedio');
       } else {
         throw Exception('No se pudo analizar las grabaciones');
       }
@@ -195,7 +204,6 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
 
   Future<Map<String, dynamic>?> _sendMultipleAudiosToAPI(List<String> filePaths) async {
     try {
-      // Verificar que todos los archivos existen
       for (var path in filePaths) {
         final file = File(path);
         if (!await file.exists()) {
@@ -203,37 +211,28 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
         }
       }
 
-      // Crear petición con MÚLTIPLES archivos
       var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
 
-      // Agregar cada archivo con el MISMO nombre de campo 'file'
       for (int i = 0; i < filePaths.length; i++) {
         request.files.add(
           await http.MultipartFile.fromPath(
-            'file', // Mismo nombre para todos
+            'file',
             filePaths[i],
             filename: 'voice_test_${i + 1}.wav',
           ),
         );
-        print('  📎 Agregado: voice_test_${i + 1}.wav');
       }
 
-      print('📤 Enviando ${filePaths.length} archivos al servidor...');
-
-      // Aumentar timeout porque son 3 archivos
+      // Timeout aumentado a 300 segundos (5 minutos) para evitar errores
       var streamedResponse = await request.send().timeout(
-        const Duration(seconds: 120), // 2 minutos para procesar 3 audios
-        onTimeout: () => throw TimeoutException('Timeout procesando múltiples audios'),
+        const Duration(seconds: 300),
+        onTimeout: () => throw TimeoutException('El servidor tardó demasiado.'),
       );
 
       var response = await http.Response.fromStream(streamedResponse);
 
-      print('📥 Código: ${response.statusCode}');
-      print('📥 Respuesta: ${response.body}');
-
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        print('✅ Análisis completado por el servidor');
         return jsonResponse;
       } else {
         throw Exception('Error ${response.statusCode}: ${response.body}');
@@ -244,21 +243,8 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
     }
   }
 
-  void _calculateFinalResult() {
-    // Ya no es necesario porque el servidor hace los cálculos
-    // Solo se usa si queremos mostrar datos adicionales
-    if (_resultadosIndividuales.isEmpty) return;
-
-    final resultado = _resultadosIndividuales[0];
-    print('📊 Resultado del servidor:');
-    print('   Probabilidad: ${resultado['probabilidad']}%');
-    print('   Mensaje: ${resultado['mensaje']}');
-    print('   Detalles: ${resultado['detalles']}');
-  }
-
   Future<void> _playRecording(int index) async {
     if (index >= _recordingPaths.length) return;
-
     try {
       if (_isPlaying) {
         await _audioPlayer.stop();
@@ -266,7 +252,6 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       } else {
         await _audioPlayer.play(DeviceFileSource(_recordingPaths[index]));
         setState(() => _isPlaying = true);
-
         _audioPlayer.onPlayerComplete.listen((_) {
           if (mounted) setState(() => _isPlaying = false);
         });
@@ -287,6 +272,9 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
       _testCompleted = false;
       _currentDuration = Duration.zero;
       _probabilidadPromedio = null;
+      _jitterPromedio = null;
+      _shimmerPromedio = null;
+      _hnrPromedio = null;
       _mensajeFinal = null;
       _colorFinal = null;
       _alertaBiomarcadoresGlobal = null;
@@ -301,7 +289,6 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
           content: Text(message),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
         ),
       );
     }
@@ -320,19 +307,14 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Test de Voz IA - Triple Análisis'),
+        title: const Text('Test de Voz IA'),
         actions: [
           if (_recordingPaths.isNotEmpty && !_testCompleted && !_isAnalyzing)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _resetTest,
-              tooltip: 'Reiniciar',
-            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _resetTest),
         ],
       ),
       body: Column(
         children: [
-          // Indicador de progreso
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -351,17 +333,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
                             : index == _currentRecording && _isRecording
                             ? Theme.of(context).colorScheme.primary
                             : Colors.grey.shade300,
-                        child: index < _recordingPaths.length
-                            ? const Icon(Icons.check, color: Colors.white, size: 16)
-                            : Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            color: index == _currentRecording && _isRecording
-                                ? Colors.white
-                                : Colors.grey.shade600,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: Text('${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     );
                   }),
@@ -381,14 +353,9 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  if (_isRecording)
-                    _buildTimer(),
-
-                  if (_recordingPaths.isNotEmpty && !_testCompleted)
-                    _buildRecordingsList(),
-
+                  if (_isRecording) _buildTimer(),
+                  if (_recordingPaths.isNotEmpty && !_testCompleted) _buildRecordingsList(),
                   const SizedBox(height: 24),
-
                   if (!_testCompleted)
                     _buildRecordingControls()
                   else
@@ -403,119 +370,67 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   }
 
   String _getInstructionText() {
-    if (_isAnalyzing) {
-      return 'Analizando ${_totalRecordings} grabaciones con IA...';
-    } else if (_testCompleted) {
-      return 'Análisis completado - Resultados de $_totalRecordings muestras';
-    } else if (_isRecording) {
-      return 'Grabación ${_currentRecording + 1} de $_totalRecordings: Di "AAAAA" sostenido';
-    } else if (_recordingPaths.length < _totalRecordings) {
-      return 'Grabación ${_currentRecording + 1} de $_totalRecordings';
-    } else {
-      return 'Listo para analizar';
-    }
+    if (_isAnalyzing) return 'Analizando grabaciones...';
+    if (_testCompleted) return 'Resultados de $_totalRecordings muestras';
+    if (_isRecording) return 'Di "AAAAA" sostenido';
+    return 'Listo para iniciar';
   }
 
   Widget _buildTimer() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Grabación ${_currentRecording + 1}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _formatDuration(_currentDuration),
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        Text('Grabando...', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          _formatDuration(_currentDuration),
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.red),
+        ),
+      ],
     );
   }
 
   Widget _buildRecordingsList() {
     return Column(
-      children: [
-        Text(
-          'Grabaciones completadas',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...List.generate(_recordingPaths.length, (index) {
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Colors.green,
-                child: Text('${index + 1}'),
-              ),
-              title: Text('Grabación ${index + 1}'),
-              subtitle: Text(_formatDuration(_recordingDurations[index])),
-              trailing: IconButton(
-                icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                onPressed: () => _playRecording(index),
-              ),
+      children: List.generate(_recordingPaths.length, (index) {
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.mic, color: Colors.green),
+            title: Text('Grabación ${index + 1}'),
+            trailing: IconButton(
+              icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
+              onPressed: () => _playRecording(index),
             ),
-          );
-        }),
-      ],
+          ),
+        );
+      }),
     );
   }
 
   Widget _buildRecordingControls() {
+    final size = MediaQuery.of(context).size;
+    final buttonSize = (size.width * 0.35).clamp(100.0, 140.0);
+
     return Column(
       children: [
-        // Botón principal
         if (!_isRecording && _recordingPaths.length < _totalRecordings)
           ScaleTransition(
             scale: _pulseAnimation,
             child: GestureDetector(
               onTap: _startRecording,
               child: Container(
-                width: 140,
-                height: 140,
+                width: buttonSize,
+                height: buttonSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Theme.of(context).colorScheme.primary,
-                      Theme.of(context).colorScheme.secondary,
-                    ],
-                  ),
+                  color: Theme.of(context).colorScheme.primary,
                   boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
+                    BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 5))
                   ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.mic, size: 56, color: Colors.white),
-                    const SizedBox(height: 8),
-                    Text(
-                      'GRABAR ${_currentRecording + 1}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
+                    const Icon(Icons.mic, size: 40, color: Colors.white),
+                    const Text('GRABAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -526,350 +441,164 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
           GestureDetector(
             onTap: _stopRecording,
             child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.red,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.stop, size: 56, color: Colors.white),
-                  SizedBox(height: 8),
-                  Text(
-                    'DETENER',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
+              width: buttonSize,
+              height: buttonSize,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+              child: const Icon(Icons.stop, size: 50, color: Colors.white),
             ),
           ),
 
-        const SizedBox(height: 24),
-
         if (_isAnalyzing)
-          Column(
+          const Column(
             children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Analizando $_totalRecordings grabaciones...',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Procesando ${_resultadosIndividuales.length + 1} de $_totalRecordings',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              CircularProgressIndicator(),
+              SizedBox(height: 10),
+              Text("Procesando datos en el servidor..."),
             ],
           ),
       ],
     );
   }
 
+  // --- AQUÍ ESTÁ LA NUEVA SECCIÓN DE RESULTADOS CON LOS DATOS TÉCNICOS ---
   Widget _buildResults() {
     final color = _getColorFromString(_colorFinal ?? 'verde');
-    final hasParkinson = (_probabilidadPromedio ?? 0) > 50 || (_alertaBiomarcadoresGlobal ?? false);
+    final hasParkinson = (_probabilidadPromedio ?? 0) > 50;
 
     return Column(
       children: [
-        // Resultado principal
+        // 1. Tarjeta Principal
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color, color.withOpacity(0.7)],
-            ),
+            color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
+            border: Border.all(color: color, width: 2),
           ),
           child: Column(
             children: [
-              Icon(
-                hasParkinson ? Icons.warning_rounded : Icons.check_circle_rounded,
-                size: 80,
-                color: Colors.white,
-              ),
-              const SizedBox(height: 16),
+              Icon(hasParkinson ? Icons.warning : Icons.check_circle, size: 60, color: color),
+              const SizedBox(height: 10),
               Text(
-                _mensajeFinal ?? 'Análisis completado',
+                _mensajeFinal ?? '',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
               ),
-              const SizedBox(height: 8),
               Text(
-                'Análisis de $_totalRecordings muestras',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.9),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Probabilidad Promedio: ${_probabilidadPromedio?.toStringAsFixed(1) ?? '0'}%',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                'Probabilidad: ${_probabilidadPromedio?.toStringAsFixed(1)}%',
+                style: const TextStyle(fontSize: 18),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
-        // Resultados individuales
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.analytics_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Análisis Consolidado',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _InfoRow(
-                label: 'Muestras analizadas',
-                value: '$_totalRecordings grabaciones',
-                icon: Icons.mic,
-              ),
-              _InfoRow(
-                label: 'Duración total',
-                value: _formatDuration(_recordingDurations.fold(
-                  Duration.zero,
-                      (sum, duration) => sum + duration,
-                )),
-                icon: Icons.timer,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Biomarcadores
-        if (_detallesGlobales.isNotEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
+        // 2. Tarjeta de Datos Técnicos (Jitter, Shimmer, HNR)
+        Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.science_outlined, color: color, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Biomarcadores Vocales Detectados',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                  ],
+                const Text("Métricas Vocales (Promedio)",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Divider(),
+                const SizedBox(height: 8),
+
+                // Jitter
+                _buildTechnicalRow(
+                    "Jitter (Frecuencia)",
+                    "${_jitterPromedio?.toStringAsFixed(5) ?? '0.0'}",
+                    "Normal < 0.01",
+                    (_jitterPromedio ?? 0) > 0.01
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Análisis de Jitter, Shimmer y HNR',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: color.withOpacity(0.7),
-                  ),
+
+                // Shimmer
+                _buildTechnicalRow(
+                    "Shimmer (Amplitud)",
+                    "${_shimmerPromedio?.toStringAsFixed(5) ?? '0.0'}",
+                    "Normal < 0.038",
+                    (_shimmerPromedio ?? 0) > 0.038
                 ),
-                const SizedBox(height: 16),
-                ..._detallesGlobales.map((detalle) {
-                  // Determinar el ícono según el tipo de biomarcador
-                  IconData biomarkerIcon;
-                  String descripcion;
 
-                  // Convertir a minúsculas para comparación case-insensitive
-                  final detalleLower = detalle.toLowerCase();
-
-                  if (detalleLower.contains('jitter')) {
-                    biomarkerIcon = Icons.graphic_eq;
-                    descripcion = 'Variabilidad de frecuencia vocal';
-                  } else if (detalleLower.contains('shimmer')) {
-                    biomarkerIcon = Icons.show_chart;
-                    descripcion = 'Variabilidad de amplitud';
-                  } else if (detalleLower.contains('hnr')) {
-                    biomarkerIcon = Icons.waves;
-                    descripcion = 'Relación armónico-ruido';
-                  } else {
-                    biomarkerIcon = Icons.circle;
-                    descripcion = 'Parámetro vocal alterado';
-                  }
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: color.withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            biomarkerIcon,
-                            size: 24,
-                            color: color,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                detalle,
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: color,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                descripcion,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.black87,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
+                // HNR
+                _buildTechnicalRow(
+                    "HNR (Ruido)",
+                    "${_hnrPromedio?.toStringAsFixed(2) ?? '0.0'} dB",
+                    "Normal > 20 dB",
+                    (_hnrPromedio ?? 20) < 20
+                ),
               ],
             ),
           ),
-
-        const SizedBox(height: 16),
-
-        // Recomendación
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Recomendación',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                hasParkinson
-                    ? 'Se detectaron signos en múltiples muestras. Se recomienda consultar con un especialista para evaluación profesional completa.'
-                    : 'No se detectaron signos evidentes en las $_totalRecordings muestras analizadas. Continúa con seguimiento periódico.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+
+        // 3. Detalles de Alertas (Si existen)
+        if (_detallesGlobales.isNotEmpty)
+          Card(
+            color: Colors.orange.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  const Text("Alertas Detectadas", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ..._detallesGlobales.map((e) => Text("• $e", style: const TextStyle(color: Colors.redAccent))),
+                ],
+              ),
+            ),
+          ),
+
+        const SizedBox(height: 20),
 
         // Botones
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _resetTest,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Repetir Test'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 50),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: _saveResults,
-                icon: const Icon(Icons.save),
-                label: const Text('Guardar'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 50),
-                ),
-              ),
-            ),
+            OutlinedButton(onPressed: _resetTest, child: const Text("Repetir")),
+            FilledButton(onPressed: _saveResults, child: const Text("Guardar")),
           ],
-        ),
+        )
       ],
+    );
+  }
+
+  Widget _buildTechnicalRow(String label, String value, String ref, bool isAlert) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(ref, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ],
+          ),
+          Text(
+            value,
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isAlert ? Colors.red : Colors.green
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Color _getColorFromString(String colorName) {
     switch (colorName.toLowerCase()) {
-      case 'rojo':
-        return Colors.red;
-      case 'naranja':
-        return Colors.orange;
-      case 'verde':
-        return Colors.green;
-      default:
-        return Colors.blue;
+      case 'rojo': return Colors.red;
+      case 'naranja': return Colors.orange;
+      case 'verde': return Colors.green;
+      default: return Colors.blue;
     }
   }
 
@@ -887,77 +616,22 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
         metrics: {
           'probabilidad_promedio': _probabilidadPromedio ?? 0.0,
           'total_muestras': _totalRecordings.toDouble(),
-          'alerta_biomarcadores': (_alertaBiomarcadoresGlobal ?? false) ? 1.0 : 0.0,
-          'resultado_1': _resultadosIndividuales.isNotEmpty ? (_resultadosIndividuales[0]['probabilidad'] ?? 0.0).toDouble() : 0.0,
-          'resultado_2': _resultadosIndividuales.length > 1 ? (_resultadosIndividuales[1]['probabilidad'] ?? 0.0).toDouble() : 0.0,
-          'resultado_3': _resultadosIndividuales.length > 2 ? (_resultadosIndividuales[2]['probabilidad'] ?? 0.0).toDouble() : 0.0,
+          // Guardamos las nuevas métricas en la base de datos local también
+          'jitter': _jitterPromedio ?? 0.0,
+          'shimmer': _shimmerPromedio ?? 0.0,
+          'hnr': _hnrPromedio ?? 0.0,
         },
-        notes: '$_mensajeFinal - Análisis de $_totalRecordings muestras',
+        notes: '$_mensajeFinal',
       );
 
       await DatabaseHelper.instance.insertTestResult(result);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Resultados guardados'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardado correctamente')));
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
-  }
-}
-
-// Widget helper para mostrar información
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
