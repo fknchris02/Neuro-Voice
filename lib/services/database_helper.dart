@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/test_result.dart';
+import '../models/user_profile.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -20,8 +21,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // ← incrementado para migración
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -40,16 +42,88 @@ class DatabaseHelper {
         notes TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE user_profile (
+        id $idType,
+        name $textType,
+        sex $textType,
+        age INTEGER NOT NULL,
+        height REAL,
+        weight REAL,
+        hasFamilyHistory INTEGER NOT NULL DEFAULT 0,
+        hasTremor INTEGER NOT NULL DEFAULT 0,
+        takingMedication INTEGER NOT NULL DEFAULT 0,
+        medicationNotes TEXT,
+        createdAt $textType
+      )
+    ''');
   }
 
-  // Insertar resultado
+  /// Migración: si el usuario ya tenía la app sin tabla de perfil
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_profile (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          sex TEXT NOT NULL,
+          age INTEGER NOT NULL,
+          height REAL,
+          weight REAL,
+          hasFamilyHistory INTEGER NOT NULL DEFAULT 0,
+          hasTremor INTEGER NOT NULL DEFAULT 0,
+          takingMedication INTEGER NOT NULL DEFAULT 0,
+          medicationNotes TEXT,
+          createdAt TEXT NOT NULL
+        )
+      ''');
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // USER PROFILE
+  // ─────────────────────────────────────────────
+
+  Future<UserProfile> insertUserProfile(UserProfile profile) async {
+    final db = await database;
+    final id = await db.insert('user_profile', profile.toMap());
+    return profile.copyWith(id: id);
+  }
+
+  /// Retorna el perfil guardado, o null si no existe aún.
+  Future<UserProfile?> getUserProfile() async {
+    final db = await database;
+    final maps = await db.query('user_profile', limit: 1);
+    if (maps.isEmpty) return null;
+    return UserProfile.fromMap(maps.first);
+  }
+
+  Future<int> updateUserProfile(UserProfile profile) async {
+    final db = await database;
+    return db.update(
+      'user_profile',
+      profile.toMap(),
+      where: 'id = ?',
+      whereArgs: [profile.id],
+    );
+  }
+
+  Future<int> deleteUserProfile() async {
+    final db = await database;
+    return db.delete('user_profile');
+  }
+
+  // ─────────────────────────────────────────────
+  // TEST RESULTS (sin cambios)
+  // ─────────────────────────────────────────────
+
   Future<TestResult> insertTestResult(TestResult result) async {
     final db = await database;
     final id = await db.insert('test_results', result.toMap());
     return result.copyWith(id: id);
   }
 
-  // Obtener resultado por ID
   Future<TestResult?> getTestResult(int id) async {
     final db = await database;
     final maps = await db.query(
@@ -57,22 +131,16 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
-
-    if (maps.isNotEmpty) {
-      return TestResult.fromMap(maps.first);
-    }
+    if (maps.isNotEmpty) return TestResult.fromMap(maps.first);
     return null;
   }
 
-  // Obtener todos los resultados
   Future<List<TestResult>> getAllTestResults() async {
     final db = await database;
-    const orderBy = 'timestamp DESC';
-    final result = await db.query('test_results', orderBy: orderBy);
+    final result = await db.query('test_results', orderBy: 'timestamp DESC');
     return result.map((json) => TestResult.fromMap(json)).toList();
   }
 
-  // Obtener resultados por tipo de test
   Future<List<TestResult>> getTestResultsByType(String testType) async {
     final db = await database;
     final result = await db.query(
@@ -84,7 +152,6 @@ class DatabaseHelper {
     return result.map((json) => TestResult.fromMap(json)).toList();
   }
 
-  // Obtener últimos N resultados
   Future<List<TestResult>> getRecentTestResults(int limit) async {
     final db = await database;
     final result = await db.query(
@@ -95,54 +162,36 @@ class DatabaseHelper {
     return result.map((json) => TestResult.fromMap(json)).toList();
   }
 
-  // Obtener resultados por rango de fechas
   Future<List<TestResult>> getTestResultsByDateRange(
-      DateTime startDate,
-      DateTime endDate,
-      ) async {
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
     final db = await database;
     final result = await db.query(
       'test_results',
       where: 'timestamp BETWEEN ? AND ?',
-      whereArgs: [
-        startDate.toIso8601String(),
-        endDate.toIso8601String(),
-      ],
+      whereArgs: [startDate.toIso8601String(), endDate.toIso8601String()],
       orderBy: 'timestamp DESC',
     );
     return result.map((json) => TestResult.fromMap(json)).toList();
   }
 
-  // Obtener estadísticas por tipo de test
   Future<Map<String, dynamic>> getTestStatistics(String testType) async {
-    final db = await database;
     final results = await getTestResultsByType(testType);
-
     if (results.isEmpty) {
-      return {
-        'count': 0,
-        'average': 0.0,
-        'best': 0.0,
-        'worst': 0.0,
-        'lastScore': 0.0,
-      };
+      return {'count': 0, 'average': 0.0, 'best': 0.0, 'worst': 0.0, 'lastScore': 0.0};
     }
-
     final scores = results.map((r) => r.overallScore).toList();
     final average = scores.reduce((a, b) => a + b) / scores.length;
-    final best = scores.reduce((a, b) => a > b ? a : b);
-    final worst = scores.reduce((a, b) => a < b ? a : b);
-
     return {
       'count': results.length,
       'average': average,
-      'best': best,
-      'worst': worst,
+      'best': scores.reduce((a, b) => a > b ? a : b),
+      'worst': scores.reduce((a, b) => a < b ? a : b),
       'lastScore': results.first.overallScore,
     };
   }
 
-  // Actualizar resultado
   Future<int> updateTestResult(TestResult result) async {
     final db = await database;
     return db.update(
@@ -153,30 +202,22 @@ class DatabaseHelper {
     );
   }
 
-  // Eliminar resultado
   Future<int> deleteTestResult(int id) async {
     final db = await database;
-    return await db.delete(
-      'test_results',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return db.delete('test_results', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Eliminar todos los resultados
   Future<int> deleteAllTestResults() async {
     final db = await database;
-    return await db.delete('test_results');
+    return db.delete('test_results');
   }
 
-  // Obtener conteo total
   Future<int> getTotalTestCount() async {
     final db = await database;
     final result = await db.rawQuery('SELECT COUNT(*) FROM test_results');
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // Obtener conteo por tipo
   Future<Map<String, int>> getTestCountByType() async {
     final db = await database;
     final result = await db.rawQuery('''
@@ -184,23 +225,17 @@ class DatabaseHelper {
       FROM test_results
       GROUP BY testType
     ''');
-
     return Map.fromEntries(
-      result.map((row) => MapEntry(
-        row['testType'] as String,
-        row['count'] as int,
-      )),
+      result.map((row) => MapEntry(row['testType'] as String, row['count'] as int)),
     );
   }
 
-  // Cerrar base de datos
   Future<void> close() async {
     final db = await database;
     db.close();
   }
 }
 
-// Extensión para copiar TestResult con nuevos valores
 extension TestResultCopyWith on TestResult {
   TestResult copyWith({
     int? id,

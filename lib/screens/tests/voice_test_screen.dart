@@ -22,10 +22,7 @@ class _VoiceTestScreenState extends State<VoiceTestScreen> with TickerProviderSt
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   // URL DE LA API: Asegúrate de que el puerto sea el mismo que el del servidor (5001 según tu código Python)
-  static const String apiUrl = 'http://192.168.0.2:5001/predict_parkinson';
-
-  // Estados del test
-  bool _isRecording = false;
+  static const String apiUrl = 'https://hymnless-podgily-jay.ngrok-free.dev/predict_parkinson';  bool _isRecording = false;
   bool _isAnalyzing = false;
   bool _testCompleted = false;
   bool _isPlaying = false;
