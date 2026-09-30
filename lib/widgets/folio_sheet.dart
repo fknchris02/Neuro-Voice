@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../screens/folio_scanner_screen.dart';
 import '../services/database_helper.dart';
 import '../services/parkinson_api.dart';
 import '../theme/app_theme.dart';
@@ -60,6 +61,18 @@ class _FolioSheetState extends State<_FolioSheet> {
     }
   }
 
+  /// Lee el QR del folio y lo valida igual que si se hubiera escrito.
+  Future<void> _scan() async {
+    if (_loading) return;
+    final folio = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const FolioScannerScreen()),
+    );
+    if (folio == null || !mounted) return;
+    _controller.text = folio;
+    await _submit();
+  }
+
   void _fail(String message) {
     if (!mounted) return;
     setState(() {
@@ -101,7 +114,8 @@ class _FolioSheetState extends State<_FolioSheet> {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Te lo entrega tu médico al darte de alta.',
+              'Te lo entrega tu médico al darte de alta. También puedes '
+              'escanear el código QR.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: scheme.onSurfaceVariant),
@@ -147,6 +161,15 @@ class _FolioSheetState extends State<_FolioSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text('Continuar'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: _loading ? null : _scan,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Escanear código QR'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
             ),
           ],
         ),

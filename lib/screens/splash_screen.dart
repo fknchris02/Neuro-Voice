@@ -99,14 +99,21 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
                 
-                const Spacer(),
-                
-                // Center Graphic (Custom Animated Paint to match mockup)
-                const Center(
-                  child: BrainWaveAnimation(),
+                // Logo; se encoge en pantallas pequeñas para no desbordar.
+                Expanded(
+                  child: Center(
+                    child: ZoomIn(
+                      duration: const Duration(milliseconds: 700),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
+                        child: const AspectRatio(
+                          aspectRatio: 1,
+                          child: _SplashLogo(),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                
-                const Spacer(),
                 
                 // Badges
                 FadeInUp(
@@ -295,157 +302,25 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class BrainWaveAnimation extends StatefulWidget {
-  const BrainWaveAnimation({super.key});
-
-  @override
-  State<BrainWaveAnimation> createState() => _BrainWaveAnimationState();
-}
-
-class _BrainWaveAnimationState extends State<BrainWaveAnimation> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+/// Logo de NeuroVoice con los bordes difuminados para que su fondo oscuro
+/// se funda con el degradado de la bienvenida.
+class _SplashLogo extends StatelessWidget {
+  const _SplashLogo();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: const Size(200, 240),
-          painter: BrainWavePainter(_controller.value),
-        );
-      },
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) => const RadialGradient(
+        radius: 0.5,
+        colors: [Colors.white, Colors.white, Colors.transparent],
+        stops: [0, 0.84, 1],
+      ).createShader(bounds),
+      child: Image.asset(
+        'assets/images/logo.png',
+        fit: BoxFit.contain,
+        semanticLabel: 'NeuroVoice',
+      ),
     );
-  }
-}
-
-class BrainWavePainter extends CustomPainter {
-  final double animationValue;
-
-  BrainWavePainter(this.animationValue);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-
-    // 1. Glow rojo de fondo
-    final glowPaint = Paint()
-      ..color = const Color(0xFFFF4B6E).withOpacity(0.05 + (animationValue * 0.1))
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: 150, height: 200),
-      glowPaint,
-    );
-
-    // 2. Trazado del contorno (Silueta del cerebro/cabeza)
-    final outlinePath = Path();
-    outlinePath.moveTo(center.dx, size.height - 20); // Base inferior
-    // Curva izquierda
-    outlinePath.cubicTo(
-      center.dx - 100, size.height - 50, // Punto de control inferior izquierdo
-      center.dx - 100, 30,             // Punto de control superior izquierdo
-      center.dx, 10,                   // Top center
-    );
-    // Curva derecha
-    outlinePath.cubicTo(
-      center.dx + 100, 30,             // Punto de control superior derecho
-      center.dx + 100, size.height - 50, // Punto de control inferior derecho
-      center.dx, size.height - 20,     // Base inferior
-    );
-
-    // Dibujar línea exterior sólida, suave
-    final outerLinePaint = Paint()
-      ..color = const Color(0xFFFF4B6E).withOpacity(0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    
-    canvas.drawPath(outlinePath, outerLinePaint);
-
-    // Dibujar línea interior (un poco más pequeña) para simular la profundidad
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.scale(0.85); // Reducir escala al 85% desde el centro
-    canvas.translate(-center.dx, -center.dy);
-    
-    final innerLinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    
-    canvas.drawPath(outlinePath, innerLinePaint);
-    canvas.restore();
-
-    // 3. Onda de sonido / Latido en el centro
-    final wavePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeJoin = StrokeJoin.round;
-      
-    final wavePath = Path();
-    // La onda va de arriba hacia abajo
-    wavePath.moveTo(center.dx, 30);
-    wavePath.lineTo(center.dx, center.dy - 60);
-    wavePath.lineTo(center.dx - 25, center.dy - 30);
-    wavePath.lineTo(center.dx + 30, center.dy - 10);
-    wavePath.lineTo(center.dx - 35, center.dy + 15);
-    wavePath.lineTo(center.dx + 25, center.dy + 35);
-    wavePath.lineTo(center.dx, center.dy + 60);
-    wavePath.lineTo(center.dx, size.height - 30);
-    
-    canvas.drawPath(wavePath, wavePaint);
-
-    // 4. Puntos brillantes en los picos de la onda
-    final dotPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    
-    final dotGlowPaint = Paint()
-      ..color = const Color(0xFFFF4B6E)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
-      ..style = PaintingStyle.fill;
-
-    // Lista de picos definidos en la onda
-    final peaks = [
-      Offset(center.dx, 30),
-      Offset(center.dx - 25, center.dy - 30),
-      Offset(center.dx + 30, center.dy - 10),
-      Offset(center.dx - 35, center.dy + 15),
-      Offset(center.dx + 25, center.dy + 35),
-      Offset(center.dx, size.height - 30),
-      // Puntos extra a los lados para simular la imagen
-      Offset(center.dx - 65, center.dy - 20),
-      Offset(center.dx + 65, center.dy + 20),
-      Offset(center.dx, 10),
-      Offset(center.dx, size.height - 20),
-    ];
-
-    for (var peak in peaks) {
-      // Glow palpitante para los puntos
-      canvas.drawCircle(peak, 5 + (animationValue * 3), dotGlowPaint);
-      canvas.drawCircle(peak, 2, dotPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant BrainWavePainter oldDelegate) {
-    return oldDelegate.animationValue != animationValue;
   }
 }

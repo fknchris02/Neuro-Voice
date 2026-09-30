@@ -42,13 +42,16 @@ dependencies:
   # HTTP para peticiones a la API
   http: ^1.6.0
   url_launcher: ^6.3.2
+  mobile_scanner: ^7.4.2
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logoNV1.jpeg"
+  image_path: "assets/images/logo.png"
+  # iOS rechaza íconos con canal alfa.
+  remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/logoNV1.jpeg"
+  adaptive_icon_foreground: "assets/images/logo.png"
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1

@@ -28,7 +28,7 @@ class AppLogo extends StatelessWidget {
         ),
         child: ClipOval(
           child: Image.asset(
-            'assets/images/logo.jpg',
+            'assets/images/logo.png',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               // Si no encuentra la imagen, muestra un ícono
@@ -62,7 +62,7 @@ class AppLogo extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Image.asset(
-          'assets/images/logo.jpg',
+          'assets/images/logo.png',
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             return Container(
@@ -90,7 +90,7 @@ class AppBarLogo extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Image.asset(
-        'assets/images/logo.jpg',
+        'assets/images/logo.png',
         fit: BoxFit.contain,
         errorBuilder: (context, error, stackTrace) {
           return const Icon(Icons.medical_services);

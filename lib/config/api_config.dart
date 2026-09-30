@@ -7,7 +7,7 @@ class ApiConfig {
 
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.137.86:5001',
+    defaultValue: 'http://192.168.0.5:5001',
   );
 
   static Uri get predict => Uri.parse('$baseUrl/predict_parkinson');

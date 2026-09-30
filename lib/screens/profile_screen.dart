@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../widgets/neuro_app_bar.dart';
+import 'about_screen.dart';
 import 'splash_screen.dart';
-import 'tests/database_viewer.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  /// Cambia a la pestaña de Historial del dashboard.
+  final VoidCallback? onOpenHistory;
+
+  const ProfilePage({super.key, this.onOpenHistory});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -205,62 +208,23 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     children: [
                       ListTile(
-                        leading:
-                            const Icon(Icons.medical_information_outlined),
-                        title: const Text('Historial Médico'),
+                        leading: const Icon(Icons.history),
+                        title: const Text('Historial de pruebas'),
+                        subtitle: const Text('Resultados de tus evaluaciones'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.notifications_outlined),
-                        title: const Text('Notificaciones'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.settings_outlined),
-                        title: const Text('Configuración'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.storage),
-                        title: const Text('Ver Base de Datos'),
-                        subtitle: const Text('Información técnica'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const DatabaseViewer(),
-                            ),
-                          );
-                        },
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.help_outline),
-                        title: const Text('Ayuda y Soporte'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
+                        onTap: widget.onOpenHistory,
                       ),
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.info_outline),
                         title: const Text('Acerca de'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () {},
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AboutScreen(),
+                          ),
+                        ),
                       ),
                     ],
                   ),

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/liquid_glass.dart';
 import 'home_screen.dart';
-import 'tests_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 
@@ -20,10 +19,9 @@ class _DashboardPageState extends State<DashboardPage> {
   void _select(int index) => setState(() => _selectedIndex = index);
 
   Widget _page() => switch (_selectedIndex) {
-        0 => HomePage(onOpenProfile: () => _select(3)),
-        1 => const TestsPage(),
-        2 => const HistoryPage(),
-        _ => const ProfilePage(),
+        0 => HomePage(onOpenProfile: () => _select(2)),
+        1 => const HistoryPage(),
+        _ => ProfilePage(onOpenHistory: () => _select(1)),
       };
 
   @override
@@ -68,7 +66,6 @@ class FloatingNavBar extends StatelessWidget {
 
   static const _items = [
     (Icons.home_outlined, Icons.home_rounded, 'Inicio'),
-    (Icons.graphic_eq, Icons.graphic_eq, 'Pruebas'),
     (Icons.analytics_outlined, Icons.analytics_rounded, 'Historial'),
     (Icons.person_outline, Icons.person_rounded, 'Perfil'),
   ];

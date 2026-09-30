@@ -44,6 +44,13 @@ String greetingForTime([DateTime? at]) {
 /// Folio de evaluación: "CM26-9HTK57" (sin I, O, 0 ni 1 para evitar confusiones).
 final folioPattern = RegExp(r'^CM\d{2}-[A-HJ-NP-Z2-9]{6}$');
 
+/// Folio dentro del texto de un código QR ("CM26-9HTK57", con o sin guion);
+/// null si el código no trae un folio.
+String? folioFromQr(String raw) {
+  final m = RegExp(r'CM\d{2}-?[A-HJ-NP-Z2-9]{6}').firstMatch(raw.toUpperCase());
+  return m == null ? null : normalizeFolio(m.group(0)!);
+}
+
 /// "cm26 9htk57" → "CM26-9HTK57" (mayúsculas y guion automáticos)
 String normalizeFolio(String text) {
   var s = text.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
