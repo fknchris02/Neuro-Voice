@@ -17,30 +17,10 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _isLoading = false;
 
   Future<void> _checkProfileAndNavigate() async {
-    setState(() => _isLoading = true);
-    try {
-      final profile = await DatabaseHelper.instance.getUserProfile();
-      if (!mounted) return;
-
-      if (profile == null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RegisterScreen()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const RegisterScreen()),
-      );
-    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const DashboardPage()),
+    );
   }
 
   @override
