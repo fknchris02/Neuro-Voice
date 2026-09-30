@@ -28,7 +28,8 @@ class SupervisorAvatar extends StatelessWidget {
         style: TextStyle(
           fontSize: radius * 0.7,
           fontWeight: FontWeight.w800,
-          color: foreground ?? scheme.primary,
+          // Contrasta con primaryFixed en modo claro y oscuro.
+          color: foreground ?? scheme.onPrimaryFixedVariant,
         ),
       ),
     );

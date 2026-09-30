@@ -39,5 +39,16 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # permission_handler: en iOS cada permiso está apagado hasta habilitarlo
+    # aquí. Sin esto nunca aparece el aviso del sistema ni el interruptor en
+    # Ajustes, y request() devuelve "denegado" de inmediato.
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        'PERMISSION_MICROPHONE=1', # prueba de voz
+        'PERMISSION_SENSORS=1',    # prueba de marcha
+      ]
+    end
   end
 end

@@ -40,3 +40,13 @@ String greetingForTime([DateTime? at]) {
   if (h < 19) return 'Buenas tardes';
   return 'Buenas noches';
 }
+
+/// Folio de evaluación: "CM26-9HTK57" (sin I, O, 0 ni 1 para evitar confusiones).
+final folioPattern = RegExp(r'^CM\d{2}-[A-HJ-NP-Z2-9]{6}$');
+
+/// "cm26 9htk57" → "CM26-9HTK57" (mayúsculas y guion automáticos)
+String normalizeFolio(String text) {
+  var s = text.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  if (s.length > 10) s = s.substring(0, 10);
+  return s.length > 4 ? '${s.substring(0, 4)}-${s.substring(4)}' : s;
+}

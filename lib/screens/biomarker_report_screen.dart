@@ -5,6 +5,7 @@ import '../config/api_config.dart';
 import '../models/voice_prediction.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
+import '../theme/liquid_glass.dart';
 import '../utils/formatters.dart';
 import '../widgets/neuro_app_bar.dart';
 import '../widgets/supervisor_card.dart';
@@ -150,11 +151,22 @@ class _BiomarkerReportScreenState extends State<BiomarkerReportScreen> {
                   tooltip: _saved ? 'Guardado en historial' : 'Guardar en historial',
                   onPressed: _isSaving ? null : _onBookmark,
                   style: IconButton.styleFrom(
-                    backgroundColor:
-                        _saved ? scheme.primaryFixed : scheme.surfaceContainer,
-                    foregroundColor: scheme.primary,
+                    backgroundColor: _saved
+                        ? scheme.primaryFixed
+                        : Colors.white.withValues(alpha: 0.7),
+                    foregroundColor:
+                        _saved ? scheme.onPrimaryFixedVariant : scheme.primary,
                   ),
-                  icon: Icon(_saved ? Icons.bookmark : Icons.bookmark_border, size: 20),
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, a) =>
+                        ScaleTransition(scale: a, child: child),
+                    child: Icon(
+                      _saved ? Icons.bookmark : Icons.bookmark_border,
+                      key: ValueKey(_saved),
+                      size: 20,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -173,12 +185,10 @@ class _BiomarkerReportScreenState extends State<BiomarkerReportScreen> {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+                GlassCard(
+                  radius: 99,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  shadows: Glass.shadow(context, depth: 0.3),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -207,17 +217,27 @@ class _BiomarkerReportScreenState extends State<BiomarkerReportScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            const SupervisorCard(
-              avatarRadius: 28,
-              verified: true,
-              status: 'Revisión médica pendiente',
+            const Reveal(
+              delay: Duration(milliseconds: 60),
+              child: SupervisorCard(
+                avatarRadius: 28,
+                verified: true,
+                status: 'Revisión médica pendiente',
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
 
-            const _PipelineCard(),
+            const Reveal(
+              delay: Duration(milliseconds: 120),
+              child: _PipelineCard(),
+            ),
             const SizedBox(height: AppSpacing.md),
 
-            _ResultHero(prediction: p, onShowBiomarkers: _scrollToBiomarkers),
+            Reveal(
+              delay: const Duration(milliseconds: 180),
+              child: _ResultHero(
+                  prediction: p, onShowBiomarkers: _scrollToBiomarkers),
+            ),
             const SizedBox(height: 20),
 
             // Biomarcadores
@@ -244,13 +264,19 @@ class _BiomarkerReportScreenState extends State<BiomarkerReportScreen> {
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.sm),
-            for (final spec in biomarkerSpecs) ...[
-              _BiomarkerTile(spec: spec, value: p.biomarkers[spec.key]),
+            for (final (i, spec) in biomarkerSpecs.indexed) ...[
+              Reveal(
+                delay: Duration(milliseconds: 260 + 50 * i),
+                child: _BiomarkerTile(spec: spec, value: p.biomarkers[spec.key]),
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.sm),
 
-            _ConclusionCard(prediction: p),
+            Reveal(
+              delay: const Duration(milliseconds: 560),
+              child: _ConclusionCard(prediction: p),
+            ),
             const SizedBox(height: 12),
             const _Disclaimer(),
             const SizedBox(height: 20),
@@ -319,13 +345,7 @@ class _PipelineCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final done = _steps.where((s) => s.$3).length;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.small,
-      ),
+    return GlassCard(
       child: Column(
         children: [
           Row(
@@ -360,10 +380,16 @@ class _PipelineCard extends StatelessWidget {
                 Positioned(
                   left: inset,
                   top: 13,
-                  child: Container(
-                    height: 2,
-                    width: progress,
-                    color: scheme.primaryContainer,
+                  // La línea se llena al aparecer la tarjeta.
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: progress),
+                    duration: const Duration(milliseconds: 1100),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, width, _) => Container(
+                      height: 2,
+                      width: width,
+                      decoration: const BoxDecoration(gradient: Glass.crimson),
+                    ),
                   ),
                 ),
                 Row(
@@ -379,8 +405,9 @@ class _PipelineCard extends StatelessWidget {
                               width: 28,
                               height: 28,
                               decoration: BoxDecoration(
+                                gradient: isDone ? Glass.crimson : null,
                                 color: isDone
-                                    ? scheme.primaryContainer
+                                    ? null
                                     : scheme.surfaceContainerHighest,
                                 shape: BoxShape.circle,
                                 border: isDone
@@ -439,32 +466,38 @@ class _ResultHero extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: const [
-          BoxShadow(color: Color(0x26000000), blurRadius: 15, offset: Offset(0, 10)),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFB8202F), AppColors.primaryContainer, AppColors.primary],
+          stops: [0, 0.5, 1],
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xl + 4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.35),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+          ),
         ],
       ),
       child: Stack(
         children: [
-          Positioned(
-            right: -32,
-            bottom: -32,
+          // Brillos con degradados radiales (sin desenfoque costoso).
+          const Positioned(
+            right: -40,
+            bottom: -40,
+            child: _RadialGlow(size: 200, color: Color(0x80570010)),
+          ),
+          const Positioned(
+            left: -50,
+            top: -60,
+            child: _RadialGlow(size: 180, color: Color(0x40FF6B81)),
+          ),
+          const Positioned.fill(
             child: IgnorePointer(
-              child: Container(
-                width: 176,
-                height: 176,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.4),
-                      blurRadius: 40,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
+              child: CustomPaint(
+                painter: GlassRimPainter(radius: AppRadius.xl + 4, strength: 0.55),
               ),
             ),
           ),
@@ -531,11 +564,17 @@ class _ResultHero extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _HeroMetric(
-                        label: 'Probabilidad estimada',
-                        value: '$prob%',
-                        footnote: 'Calculada por el modelo de IA',
-                        semantics: 'Probabilidad estimada $prob por ciento',
+                      // El porcentaje cuenta desde 0 al abrir el reporte.
+                      child: TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: prob),
+                        duration: const Duration(milliseconds: 1200),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, value, _) => _HeroMetric(
+                          label: 'Probabilidad estimada',
+                          value: '$value%',
+                          footnote: 'Calculada por el modelo de IA',
+                          semantics: 'Probabilidad estimada $prob por ciento',
+                        ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
@@ -620,8 +659,16 @@ class _HeroMetric extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.sm + 2),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: 0.14),
+              Colors.white.withValues(alpha: 0.05),
+            ],
+          ),
           borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,13 +729,11 @@ class _BiomarkerTile extends StatelessWidget {
                 AppColors.riskModerate.withValues(alpha: 0.12))
             : ('Normal', scheme.secondary, scheme.surfaceContainerHigh);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.small,
-      ),
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      shadows: Glass.shadow(context, depth: 0.5),
       child: Material(
-        color: scheme.surfaceContainerLowest,
+        type: MaterialType.transparency,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         clipBehavior: Clip.antiAlias,
         child: Theme(
@@ -771,13 +816,8 @@ class _ConclusionCard extends StatelessWidget {
     final body = theme.textTheme.bodyMedium
         ?.copyWith(color: scheme.onSurfaceVariant, height: 1.45);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: AppShadows.small,
-      ),
+    return GlassCard(
+      shadows: Glass.shadow(context, depth: 0.5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -843,6 +883,28 @@ class _Disclaimer extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RadialGlow extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _RadialGlow({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox.square(
+        dimension: size,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+          ),
+        ),
+      ),
     );
   }
 }

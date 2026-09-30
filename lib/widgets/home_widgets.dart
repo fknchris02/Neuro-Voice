@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/clinical_supervisor.dart';
 import '../models/voice_prediction.dart';
 import '../theme/app_theme.dart';
+import '../theme/liquid_glass.dart';
 import '../utils/formatters.dart';
 import 'neuro_app_bar.dart';
 import 'supervisor_card.dart';
@@ -92,10 +93,6 @@ class StabilityBanner extends StatelessWidget {
     final risk = p?.risk;
 
     return SoftCard(
-      color: scheme.surfaceContainerLow,
-      shadow: const [
-        BoxShadow(color: Color(0x0A800020), blurRadius: 16, offset: Offset(0, 4)),
-      ],
       onTap: p == null ? null : onTap,
       child: Row(
         children: [
@@ -192,11 +189,13 @@ class TestFilterChips extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final dark = Glass.isDark(context);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       // Sangrado hasta el borde, como en el diseño (-mx-margin px-margin).
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.margin, 4, AppSpacing.margin, 10),
       child: Row(
         children: [
           for (var i = 0; i < categories.length; i++)
@@ -205,44 +204,71 @@ class TestFilterChips extends StatelessWidget {
               child: Semantics(
                 selected: i == selected,
                 button: true,
-                child: Material(
-                  color: i == selected
-                      ? scheme.primaryContainer
-                      : scheme.surfaceContainerHigh,
-                  shape: const StadiumBorder(),
-                  elevation: i == selected ? 1 : 0,
-                  child: InkWell(
-                    customBorder: const StadiumBorder(),
-                    onTap: () => onSelected(i),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            categories[i],
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: i == selected
-                                  ? scheme.onPrimary
-                                  : scheme.onSurfaceVariant,
-                            ),
+                child: PressableScale(
+                  scale: 0.94,
+                  // El chip elegido se vuelve carmesí con un fundido suave.
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                    decoration: ShapeDecoration(
+                      shape: StadiumBorder(
+                        side: BorderSide(
+                          color: Colors.white.withValues(
+                            alpha: i == selected ? 0.35 : (dark ? 0.14 : 0.9),
                           ),
-                          if (i == 0 && i == selected) ...[
-                            const SizedBox(width: 6),
-                            CircleAvatar(
-                              radius: 10,
-                              backgroundColor: scheme.primary,
-                              child: Text(
-                                '$totalCount',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onPrimary,
-                                ),
+                        ),
+                      ),
+                      gradient:
+                          i == selected ? Glass.crimson : Glass.fill(context),
+                      shadows: i == selected
+                          ? [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 5),
                               ),
-                            ),
-                          ],
-                        ],
+                            ]
+                          : Glass.shadow(context, depth: 0.25),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: InkWell(
+                        customBorder: const StadiumBorder(),
+                        onTap: () => onSelected(i),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 250),
+                                style: theme.textTheme.labelMedium!.copyWith(
+                                  color: i == selected
+                                      ? Colors.white
+                                      : scheme.onSurfaceVariant,
+                                ),
+                                child: Text(categories[i]),
+                              ),
+                              if (i == 0 && i == selected) ...[
+                                const SizedBox(width: 6),
+                                CircleAvatar(
+                                  radius: 10,
+                                  backgroundColor:
+                                      Colors.white.withValues(alpha: 0.25),
+                                  child: Text(
+                                    '$totalCount',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -287,188 +313,208 @@ class HeroTestCard extends StatelessWidget {
       button: true,
       label: 'Comenzar $title',
       excludeSemantics: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          boxShadow: AppShadows.hero(AppColors.primaryContainer),
-        ),
-        child: Material(
-          color: AppColors.primaryContainer,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              children: [
-                // Círculos acústicos tenues de fondo.
-                const Positioned(
-                  right: -32,
-                  top: -16,
-                  child: Opacity(opacity: 0.1, child: _Rings(size: 192)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: onPrimary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(AppRadius.xl),
-                            ),
-                            child: const Icon(Icons.mic_none, color: onPrimary, size: 26),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'PRIORITARIA DEL DÍA',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: AppColors.onPrimaryContainer,
-                                    letterSpacing: 0.6,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.4),
-                                    borderRadius: BorderRadius.circular(99),
-                                  ),
-                                  child: Text(
-                                    'Duración: $duration',
-                                    style: theme.textTheme.labelMedium
-                                        ?.copyWith(color: AppColors.primaryFixed),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: const BoxDecoration(
-                              color: AppColors.secondaryFixed,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ],
+      child: PressableScale(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFB8202F),
+                AppColors.primaryContainer,
+                AppColors.primary,
+              ],
+              stops: [0, 0.5, 1],
+            ),
+            boxShadow: AppShadows.hero(AppColors.primaryContainer),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter:
+                            GlassRimPainter(radius: AppRadius.xl, strength: 0.55),
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        title,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: onPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: onPrimary.withValues(alpha: 0.8),
-                          height: 1.6,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      // Mini visualizador de onda (decorativo).
-                      Container(
-                        height: 48,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ),
+                  ),
+                  // Círculos acústicos tenues de fondo.
+                  const Positioned(
+                    right: -32,
+                    top: -16,
+                    child: Opacity(opacity: 0.1, child: _Rings(size: 192)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final (h, bright) in _bars)
-                              Container(
-                                width: 4,
-                                height: h,
-                                decoration: BoxDecoration(
-                                  color: bright ? onPrimary : AppColors.primaryFixed,
-                                  borderRadius: BorderRadius.circular(99),
-                                ),
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: onPrimary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(AppRadius.xl),
                               ),
+                              child: const Icon(Icons.mic_none, color: onPrimary, size: 26),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'PRIORITARIA DEL DÍA',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: AppColors.onPrimaryContainer,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.4),
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                    child: Text(
+                                      'Duración: $duration',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(color: AppColors.primaryFixed),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: AppColors.secondaryFixed,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: AppColors.primaryContainer, width: 2),
-                            ),
-                            child: SupervisorAvatar(
-                              supervisor: supervisor,
-                              radius: 16,
-                              background: AppColors.secondary,
-                              foreground: onPrimary,
-                            ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          title,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: onPrimary,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  supervisor.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: onPrimary,
-                                    fontWeight: FontWeight.w700,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: onPrimary.withValues(alpha: 0.8),
+                            height: 1.6,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Mini visualizador de onda (decorativo).
+                        Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              for (final (h, bright) in _bars)
+                                Container(
+                                  width: 4,
+                                  height: h,
+                                  decoration: BoxDecoration(
+                                    color: bright ? onPrimary : AppColors.primaryFixed,
+                                    borderRadius: BorderRadius.circular(99),
                                   ),
                                 ),
-                                Text(
-                                  'Médico supervisor',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: onPrimary.withValues(alpha: 0.75),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: AppColors.primaryContainer, width: 2),
+                              ),
+                              child: SupervisorAvatar(
+                                supervisor: supervisor,
+                                radius: 16,
+                                background: AppColors.secondary,
+                                foreground: onPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    supervisor.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: onPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    'Médico supervisor',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: onPrimary.withValues(alpha: 0.75),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0x33000000),
-                                  blurRadius: 12,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 12,
+                                    offset: Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: AppColors.primaryContainer,
+                                size: 30,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.play_arrow_rounded,
-                              color: AppColors.primaryContainer,
-                              size: 30,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -682,12 +728,8 @@ class ClinicalRecommendation extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-      ),
+    return GlassCard(
+      shadows: Glass.shadow(context, depth: 0.4),
       child: Row(
         children: [
           Icon(Icons.verified_outlined, color: scheme.secondary),

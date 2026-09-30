@@ -21,7 +21,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2, // ← incrementado para migración
+      version: 3, // ← incrementado para migración
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -46,6 +46,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE user_profile (
         id $idType,
+        folio TEXT,
         name $textType,
         sex $textType,
         age INTEGER NOT NULL,
@@ -79,6 +80,10 @@ class DatabaseHelper {
         )
       ''');
     }
+    // v3: el perfil se vincula a un folio de evaluación del servidor
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE user_profile ADD COLUMN folio TEXT');
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -97,6 +102,16 @@ class DatabaseHelper {
     final maps = await db.query('user_profile', limit: 1);
     if (maps.isEmpty) return null;
     return UserProfile.fromMap(maps.first);
+  }
+
+  /// Sustituye el perfil guardado (sólo hay uno) por [profile].
+  Future<UserProfile> replaceUserProfile(UserProfile profile) async {
+    final db = await database;
+    final id = await db.transaction((txn) async {
+      await txn.delete('user_profile');
+      return txn.insert('user_profile', profile.toMap()..remove('id'));
+    });
+    return profile.copyWith(id: id);
   }
 
   Future<int> updateUserProfile(UserProfile profile) async {

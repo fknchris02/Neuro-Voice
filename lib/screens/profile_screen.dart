@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/database_helper.dart';
 import '../widgets/neuro_app_bar.dart';
-import 'register_screen.dart';
+import 'splash_screen.dart';
 import 'tests/database_viewer.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -27,10 +27,12 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _profileData = profile != null
           ? {
+              'folio': profile.folio,
               'name': profile.name,
-              'sex': profile.sex == 'male' ? 'Hombre' : 'Mujer',
-              'age': profile.age,
-              'riskGroup': profile.riskGroup,
+              'sex': profile.sexLabel,
+              'age': profile.age > 0 ? '${profile.age} años' : 'Sin dato',
+              // Sin edad no hay grupo de riesgo que mostrar.
+              'riskGroup': profile.age > 0 ? profile.riskGroup : null,
             }
           : null;
       _isLoading = false;
@@ -41,10 +43,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('¿Cambiar perfil?'),
+        title: const Text('¿Cambiar folio?'),
         content: const Text(
-          'Se borrarán tus datos de registro y podrás ingresar un nuevo perfil. '
-          'Tu historial de tests se conserva.',
+          'Se desvinculará tu folio de este teléfono y tendrás que ingresar '
+          'uno nuevo. Tu historial de tests se conserva.',
         ),
         actions: [
           TextButton(
@@ -67,10 +69,10 @@ class _ProfilePageState extends State<ProfilePage> {
     await DatabaseHelper.instance.deleteUserProfile();
 
     if (!mounted) return;
-    // Reemplaza toda la pila de navegación con el registro
+    // Vuelve a la bienvenida, donde "Iniciar Evaluación" pide el folio
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+      MaterialPageRoute(builder: (_) => const SplashScreen()),
       (route) => false,
     );
   }
@@ -130,7 +132,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      if (_profileData != null)
+                      if (_profileData?['riskGroup'] != null)
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 4),
@@ -163,6 +165,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   Card(
                     child: Column(
                       children: [
+                        if (_profileData!['folio'] != null) ...[
+                          ListTile(
+                            leading: const Icon(Icons.badge_outlined),
+                            title: const Text('Folio'),
+                            trailing: Text(
+                              _profileData!['folio'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                          const Divider(height: 1),
+                        ],
                         ListTile(
                           leading: const Icon(Icons.wc_outlined),
                           title: const Text('Sexo'),
@@ -176,7 +190,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           leading: const Icon(Icons.cake_outlined),
                           title: const Text('Edad'),
                           trailing: Text(
-                            '${_profileData!['age']} años',
+                            _profileData!['age'],
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                         ),
@@ -258,7 +272,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 OutlinedButton.icon(
                   onPressed: _resetProfile,
                   icon: const Icon(Icons.switch_account_outlined),
-                  label: const Text('Cambiar perfil'),
+                  label: const Text('Cambiar folio'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Theme.of(context).colorScheme.error,
                     side: BorderSide(

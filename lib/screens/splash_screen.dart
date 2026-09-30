@@ -3,7 +3,8 @@ import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 import '../services/database_helper.dart';
-import 'register_screen.dart';
+import '../theme/liquid_glass.dart';
+import '../widgets/folio_sheet.dart';
 import 'dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -14,9 +15,15 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _isLoading = false;
-
-  Future<void> _checkProfileAndNavigate() async {
+  /// Si el teléfono aún no tiene un folio vinculado, lo pide primero.
+  Future<void> _startEvaluation() async {
+    final profile =
+        await DatabaseHelper.instance.getUserProfile().catchError((_) => null);
+    if (!mounted) return;
+    if (profile?.folio == null) {
+      final linked = await showFolioSheet(context);
+      if (!linked || !mounted) return;
+    }
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const DashboardPage()),
@@ -172,57 +179,55 @@ class _SplashScreenState extends State<SplashScreen> {
                   child: Row(
                     children: [
                       Expanded(
-                        child: GestureDetector(
-                          onTap: _isLoading ? null : _checkProfileAndNavigate,
-                          child: Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
+                        // Se hunde un poco al tocarlo y rebota al soltar.
+                        child: PressableScale(
+                          child: GestureDetector(
+                            onTap: _startEvaluation,
+                            child: Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(30),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 16.0),
-                                        child: _isLoading 
-                                          ? const SizedBox(
-                                              width: 24, height: 24,
-                                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                            )
-                                          : Text(
-                                              'Iniciar Evaluación',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(30),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 16.0),
+                                          child: Text(
+                                            'Iniciar Evaluación',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
                                             ),
-                                      ),
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          shape: BoxShape.circle,
+                                          ),
                                         ),
-                                        child: const Icon(
-                                          Icons.arrow_forward,
-                                          color: Colors.white,
-                                          size: 20,
+                                        Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.arrow_forward,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),

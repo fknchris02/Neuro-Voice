@@ -152,6 +152,20 @@ const List<BiomarkerSpec> biomarkerSpecs = [
     higherIsWorse: true,
     decimals: 3,
   ),
+  BiomarkerSpec(
+    key: 'dfa',
+    name: 'DFA',
+    shortDescription: 'Turbulencia de la voz',
+    explanation:
+        'Análisis de fluctuaciones sin tendencia: mide cómo se comporta el '
+        'ruido de aire de tu voz a lo largo del tiempo. Valores altos se '
+        'asocian a una voz con más aire o menos controlada.',
+    icon: Icons.show_chart,
+    // Mismo umbral que el panel médico (badge "OK" hasta 0.9).
+    threshold: 0.9,
+    higherIsWorse: true,
+    decimals: 3,
+  ),
 ];
 
 /// Resultado del modelo de predicción para una prueba de voz.
@@ -182,16 +196,24 @@ class VoicePrediction {
   static double _num(dynamic v) => v is num ? v.toDouble() : 0.0;
 
   factory VoicePrediction.fromJson(Map<String, dynamic> json, {int samples = 3}) {
+    // El servidor agrupa HNR, PPE, RPDE y DFA en 'otros'; los '*_promedio'
+    // sueltos son de versiones anteriores. Lo que no venga se muestra como "—".
+    final otros = json['otros'] is Map ? json['otros'] as Map : const {};
+    final values = {
+      'jitter': json['jitter_promedio'],
+      'shimmer': json['shimmer_promedio'],
+      'hnr': otros['hnr'] ?? json['hnr_promedio'],
+      'ppe': otros['ppe'] ?? json['ppe_promedio'],
+      'rpde': otros['rpde'] ?? json['rpde_promedio'],
+      'dfa': otros['dfa'],
+    };
     return VoicePrediction(
       probability: _num(json['probabilidad_promedio']),
       message: (json['mensaje'] ?? 'Análisis completado').toString(),
       serverColor: json['color']?.toString(),
       biomarkers: {
-        'jitter': _num(json['jitter_promedio']),
-        'shimmer': _num(json['shimmer_promedio']),
-        'hnr': _num(json['hnr_promedio']),
-        'ppe': _num(json['ppe_promedio']),
-        'rpde': _num(json['rpde_promedio']),
+        for (final e in values.entries)
+          if (e.value is num) e.key: (e.value as num).toDouble(),
       },
       alerts: json['detalles_alertas_totales'] is List
           ? List<String>.from(

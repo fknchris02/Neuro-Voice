@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
+import '../theme/liquid_glass.dart';
 
 /// Marca de NeuroVoice: cuadro carmesí con micrófono.
 class BrandMark extends StatelessWidget {
@@ -16,10 +17,21 @@ class BrandMark extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: AppColors.primaryContainer,
-          borderRadius: BorderRadius.circular(size * 0.28),
+          gradient: Glass.crimson,
+          borderRadius: BorderRadius.circular(size * 0.32),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Icon(Icons.mic, color: Colors.white, size: size * 0.6),
+        child: CustomPaint(
+          foregroundPainter:
+              GlassRimPainter(radius: size * 0.32, strength: 0.6),
+          child: Icon(Icons.mic_rounded, color: Colors.white, size: size * 0.6),
+        ),
       ),
     );
   }
@@ -70,13 +82,14 @@ class _UserAvatarState extends State<UserAvatar> {
       radius: widget.radius,
       backgroundColor: scheme.primaryFixed,
       child: initials.isEmpty
-          ? Icon(Icons.person, size: widget.radius, color: scheme.primary)
+          ? Icon(Icons.person,
+              size: widget.radius, color: scheme.onPrimaryFixedVariant)
           : Text(
               initials,
               style: TextStyle(
                 fontSize: widget.radius * 0.75,
                 fontWeight: FontWeight.w700,
-                color: scheme.primary,
+                color: scheme.onPrimaryFixedVariant,
               ),
             ),
     );
@@ -117,12 +130,25 @@ class NeuroAppBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: 64,
       automaticallyImplyLeading: false,
       centerTitle: false,
-      titleSpacing: canPop ? 0 : AppSpacing.margin,
+      titleSpacing: canPop ? 4 : AppSpacing.margin,
       leading: canPop
-          ? IconButton(
-              tooltip: 'Volver',
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.maybePop(context),
+          ? Center(
+              child: SizedBox.square(
+                dimension: 40,
+                child: GlassCard(
+                  radius: 20,
+                  padding: EdgeInsets.zero,
+                  shadows: Glass.shadow(context, depth: 0.4),
+                  onTap: () => Navigator.maybePop(context),
+                  child: Tooltip(
+                    message: 'Volver',
+                    child: Center(
+                      child: Icon(Icons.arrow_back_ios_new_rounded,
+                          size: 18, color: theme.colorScheme.onSurface),
+                    ),
+                  ),
+                ),
+              ),
             )
           : null,
       title: Row(

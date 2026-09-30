@@ -1,8 +1,9 @@
 class UserProfile {
   final int? id;
+  final String? folio; // folio de evaluación asignado por el servidor
   final String name;
-  final String sex; // 'male', 'female'
-  final int age;
+  final String sex; // 'male', 'female', 'other'
+  final int age; // 0 = sin dato
   final double? height; // cm
   final double? weight; // kg
   final bool hasFamilyHistory; // antecedentes familiares de Parkinson
@@ -13,6 +14,7 @@ class UserProfile {
 
   UserProfile({
     this.id,
+    this.folio,
     required this.name,
     required this.sex,
     required this.age,
@@ -24,6 +26,38 @@ class UserProfile {
     this.medicationNotes,
     required this.createdAt,
   });
+
+  /// Paciente dado de alta en el servidor (`GET /api/app/vincular/<folio>`).
+  /// El servidor manda sexo "H", "M" o "X" y la fecha de nacimiento.
+  factory UserProfile.fromServer(Map<String, dynamic> j) {
+    final birth = DateTime.tryParse(j['fecha_nacimiento'] as String? ?? '');
+    return UserProfile(
+      folio: j['folio'] as String?,
+      name: j['nombre'] as String? ?? '',
+      sex: switch (j['sexo']) {
+        'H' => 'male',
+        'M' => 'female',
+        _ => 'other',
+      },
+      age: birth == null ? 0 : _ageOn(birth, DateTime.now()),
+      hasFamilyHistory: false,
+      hasTremor: false,
+      takingMedication: false,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  static int _ageOn(DateTime birth, DateTime today) {
+    final beforeBirthday = today.month < birth.month ||
+        (today.month == birth.month && today.day < birth.day);
+    return today.year - birth.year - (beforeBirthday ? 1 : 0);
+  }
+
+  String get sexLabel => switch (sex) {
+        'male' => 'Hombre',
+        'female' => 'Mujer',
+        _ => 'Otro',
+      };
 
   /// Grupo de riesgo basado en edad y sexo.
   /// Hombres >60 y mujeres >65 entran en umbral de mayor riesgo.
@@ -43,6 +77,7 @@ class UserProfile {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'folio': folio,
       'name': name,
       'sex': sex,
       'age': age,
@@ -59,6 +94,7 @@ class UserProfile {
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     return UserProfile(
       id: map['id'],
+      folio: map['folio'],
       name: map['name'],
       sex: map['sex'],
       age: map['age'],
@@ -74,6 +110,7 @@ class UserProfile {
 
   UserProfile copyWith({
     int? id,
+    String? folio,
     String? name,
     String? sex,
     int? age,
@@ -87,6 +124,7 @@ class UserProfile {
   }) {
     return UserProfile(
       id: id ?? this.id,
+      folio: folio ?? this.folio,
       name: name ?? this.name,
       sex: sex ?? this.sex,
       age: age ?? this.age,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'liquid_glass.dart';
+
 /// Tokens de color del diseño de Stitch (design/stitch/*/code.html).
 class AppColors {
   AppColors._();
@@ -39,11 +41,11 @@ class AppColors {
   static const riskHigh = Color(0xFFC62828);
 }
 
-/// Radios de Stitch: lg = 8, xl = 12, full = pill.
+/// Radios: más amplios que los de Stitch para el estilo liquid glass.
 class AppRadius {
   AppRadius._();
-  static const lg = 8.0;
-  static const xl = 12.0;
+  static const lg = 12.0;
+  static const xl = 20.0;
 }
 
 /// Espaciados de Stitch.
@@ -173,28 +175,85 @@ class AppTheme {
     const minButtonSize = Size(64, 52);
     final buttonText = textTheme.labelLarge!.copyWith(fontSize: 15);
 
+    final dark = scheme.brightness == Brightness.dark;
+    // Cristal de tarjetas, hojas y diálogos.
+    final glassColor = dark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.72);
+    final glassSide = BorderSide(
+      color: Colors.white.withValues(alpha: dark ? 0.14 : 0.85),
+    );
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
+      // Transparente: cada ruta pinta el fondo ambiental (LiquidBackdrop).
+      scaffoldBackgroundColor: Colors.transparent,
       textTheme: textTheme,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: LiquidPageTransitionsBuilder(),
+          TargetPlatform.iOS: LiquidPageTransitionsBuilder(),
+          TargetPlatform.macOS: LiquidPageTransitionsBuilder(),
+          TargetPlatform.windows: LiquidPageTransitionsBuilder(),
+          TargetPlatform.linux: LiquidPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: LiquidPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
+        // Se funde con el fondo y se vuelve cristal al hacer scroll debajo.
+        backgroundColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.scrolledUnder)
+              ? scheme.surface.withValues(alpha: 0.82)
+              : Colors.transparent,
+        ),
         surfaceTintColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
         elevation: 0,
-        scrolledUnderElevation: 1,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
+        scrolledUnderElevation: 0,
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        // Sombra suave carmesí para separar la tarjeta del fondo #fff8f8.
-        elevation: 2,
-        shadowColor: const Color(0x40800020),
+        elevation: 0,
         margin: EdgeInsets.zero,
-        color: scheme.surfaceContainerLowest,
+        color: glassColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.xl),
+          side: glassSide,
+        ),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: dark
+            ? const Color(0xFF241A1D).withValues(alpha: 0.97)
+            : scheme.surface.withValues(alpha: 0.97),
+        surfaceTintColor: Colors.transparent,
+        dragHandleColor: scheme.outlineVariant,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: dark ? const Color(0xFF241A1D) : scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: glassSide,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: glassColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg + 4),
+          borderSide: glassSide,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg + 4),
+          borderSide: glassSide,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg + 4),
+          borderSide: BorderSide(color: scheme.primary, width: 1.6),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -204,6 +263,32 @@ class AppTheme {
           textStyle: buttonText,
           backgroundColor: scheme.primaryContainer,
           foregroundColor: scheme.onPrimary,
+          elevation: 3,
+          shadowColor: AppColors.primary.withValues(alpha: 0.45),
+          animationDuration: const Duration(milliseconds: 220),
+        ).copyWith(
+          // Brillo de cristal encima del color: respeta los botones que
+          // cambian el color (p. ej. los de acciones destructivas).
+          backgroundBuilder: (context, states, child) =>
+              states.contains(WidgetState.disabled)
+                  ? child!
+                  : DecoratedBox(
+                      decoration: const ShapeDecoration(
+                        shape: StadiumBorder(),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x47FFFFFF),
+                            Color(0x0AFFFFFF),
+                            Color(0x00000000),
+                            Color(0x1A000000),
+                          ],
+                          stops: [0, 0.45, 0.6, 1],
+                        ),
+                      ),
+                      child: child,
+                    ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -218,7 +303,8 @@ class AppTheme {
           minimumSize: minButtonSize,
           shape: const StadiumBorder(),
           textStyle: buttonText,
-          side: BorderSide(color: scheme.primary),
+          backgroundColor: glassColor,
+          side: BorderSide(color: scheme.primary.withValues(alpha: 0.6)),
         ),
       ),
       chipTheme: ChipThemeData(
@@ -226,20 +312,25 @@ class AppTheme {
         side: BorderSide.none,
         labelStyle: textTheme.labelMedium,
       ),
-      snackBarTheme: const SnackBarThemeData(
+      snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg + 4),
+        ),
       ),
     );
   }
 }
 
-/// Superficie blanca con la sombra suave de las tarjetas de Stitch.
+/// Tarjeta estándar de la app, en cristal (ver [GlassCard]).
 class SoftCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+
+  /// Tinte opcional del cristal.
   final Color? color;
   final VoidCallback? onTap;
-  final List<BoxShadow> shadow;
+  final List<BoxShadow>? shadow;
 
   const SoftCard({
     super.key,
@@ -247,23 +338,17 @@ class SoftCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(AppSpacing.md),
     this.color,
     this.onTap,
-    this.shadow = AppShadows.card,
+    this.shadow,
   });
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(AppRadius.xl);
-    return DecoratedBox(
-      decoration: BoxDecoration(borderRadius: radius, boxShadow: shadow),
-      child: Material(
-        color: color ?? Theme.of(context).colorScheme.surfaceContainerLowest,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
+    return GlassCard(
+      padding: padding,
+      tint: color,
+      onTap: onTap,
+      shadows: shadow,
+      child: child,
     );
   }
 }
