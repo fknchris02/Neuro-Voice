@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import '../models/user_profile.dart';
 import '../services/database_helper.dart';
-import '../main.dart' show DashboardPage;
+import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

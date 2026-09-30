@@ -1,0 +1,238 @@
+<!DOCTYPE html><html class="h-full" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>NeuroVoice AI - Detección Temprana</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              darkest: '#2B0007',
+              dark: '#4A000C',
+              burgundy: '#660011',
+              crimson: '#800015',
+              ruby: '#A3081E',
+              coral: '#FF4D6D',
+              rose: '#FFA3B1'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'Segoe UI', 'Roboto', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+<!-- Custom Styles: Visual Effects & Animations -->
+<style data-purpose="custom-effects">
+    @keyframes pulseGlow {
+      0%, 100% {
+        opacity: 0.45;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+      }
+    }
+    @keyframes neuralFloat {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-6px);
+      }
+    }
+    @keyframes soundwaveWave {
+      0%, 100% {
+        stroke-dashoffset: 0;
+      }
+      50% {
+        stroke-dashoffset: 20;
+      }
+    }
+    .animate-pulse-glow {
+      animation: pulseGlow 4s ease-in-out infinite;
+    }
+    .animate-neural-float {
+      animation: neuralFloat 5s ease-in-out infinite;
+    }
+    .animate-waveform {
+      stroke-dasharray: 8, 4;
+      animation: soundwaveWave 6s linear infinite;
+    }
+    /* iOS Safe Area Support */
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    .pt-safe {
+      padding-top: env(safe-area-inset-top, 12px);
+    }
+  </style>
+</head>
+<body class="bg-neutral-900 min-h-full flex items-center justify-center p-0 sm:p-4 antialiased text-white select-none">
+<!-- BEGIN: MobileDeviceFrame -->
+<div class="relative w-full max-w-[412px] h-[892px] max-h-screen overflow-hidden sm:rounded-[48px] bg-gradient-to-b from-[#7A0014] via-[#4A000C] to-[#240006] shadow-2xl flex flex-col justify-between border-0 sm:border-8 sm:border-neutral-800" data-purpose="mobile-device-container">
+<!-- Ambient Background Lighting -->
+<div aria-hidden="true" class="absolute inset-0 pointer-events-none overflow-hidden">
+<div class="absolute -top-24 -left-20 w-80 h-80 bg-red-600/30 rounded-full blur-[90px]"></div>
+<div class="absolute top-1/3 -right-24 w-88 h-88 bg-rose-600/25 rounded-full blur-[100px]"></div>
+<div class="absolute -bottom-20 left-1/4 w-72 h-72 bg-brand-crimson/50 rounded-full blur-[80px]"></div>
+</div>
+<!-- BEGIN: TopBarArea -->
+<header class="relative z-20 pt-safe px-7 pt-3" data-purpose="top-navigation-bar">
+<!-- iOS Status Bar -->
+<div class="flex items-center justify-between text-xs font-semibold tracking-tight text-white/95 pb-3">
+<!-- Time -->
+<span class="tracking-normal font-medium text-sm">9:41</span>
+<!-- Icons: Cellular, Wifi, Battery -->
+<div aria-label="Estado de conexión y batería" class="flex items-center space-x-1.5">
+<!-- Cellular -->
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<path d="M2 17h3v4H2v-4zm6-5h3v9H8v-9zm6-5h3v14h-3V7zm6-4h3v18h-3V3z"></path>
+</svg>
+<!-- Wifi -->
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4zm0 3.2c3.48 0 6.64 1.34 9.01 3.53L12 19.82 2.99 10.73A13.43 13.43 0 0 1 12 7.2z"></path>
+</svg>
+<!-- Battery -->
+<div class="flex items-center">
+<div class="w-5 h-2.5 border border-white/80 rounded-sm p-0.5 flex items-center">
+<div class="h-full w-full bg-white rounded-2xs"></div>
+</div>
+<div class="w-0.5 h-1 bg-white/80 rounded-r-xs ml-0.5"></div>
+</div>
+</div>
+</div>
+<!-- Brand Header -->
+<div class="flex flex-col items-center justify-center pt-2">
+<div class="flex items-center space-x-2">
+<!-- Logo Icon -->
+<div class="w-7 h-7 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
+<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<path d="M12 2a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
+<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+<line x1="12" x2="12" y1="19" y2="22"></line>
+<circle cx="12" cy="7" fill="currentColor" r="1.5"></circle>
+</svg>
+</div>
+<!-- Brand Name -->
+<span class="text-base font-bold tracking-tight text-white">NeuroVoice <span class="text-brand-coral font-extrabold">AI</span></span>
+</div>
+<span class="text-[9px] font-semibold tracking-widest text-white/50 uppercase mt-0.5">BIOMARCADORES DE VOZ</span>
+</div>
+</header>
+<!-- END: TopBarArea -->
+<!-- BEGIN: HeroVisualSection -->
+<main class="relative z-10 flex-1 flex flex-col justify-center items-center px-6 -mt-3" data-purpose="hero-visualization">
+<!-- Central Graphic Visual: Neural Cortex & Voice Waves -->
+<div class="relative w-full max-w-[280px] aspect-square flex items-center justify-center">
+<!-- Glow Backdrops -->
+<div class="absolute inset-4 rounded-full bg-gradient-to-tr from-brand-ruby/50 via-rose-500/40 to-transparent blur-2xl animate-pulse-glow"></div>
+<div class="absolute w-44 h-44 rounded-full bg-brand-crimson/60 blur-xl"></div>
+<!-- Stylized Neural Brain & Frequency Artwork (SVG) -->
+<div class="relative w-full h-full flex items-center justify-center animate-neural-float">
+<svg class="w-full h-full max-w-[250px] drop-shadow-[0_0_24px_rgba(255,77,109,0.55)]" fill="none" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient gradientUnits="userSpaceOnUse" id="neuralGlow" x1="20" x2="240" y1="30" y2="230">
+<stop offset="0%" stop-color="#FFE5E9"></stop>
+<stop offset="35%" stop-color="#FF4D6D"></stop>
+<stop offset="70%" stop-color="#C90A2E"></stop>
+<stop offset="100%" stop-color="#660011"></stop>
+</linearGradient>
+<linearGradient gradientUnits="userSpaceOnUse" id="waveformLine" x1="0" x2="260" y1="130" y2="130">
+<stop offset="0%" stop-color="#FF4D6D" stop-opacity="0.1"></stop>
+<stop offset="30%" stop-color="#FF6B8B" stop-opacity="0.7"></stop>
+<stop offset="50%" stop-color="#FFFFFF" stop-opacity="1"></stop>
+<stop offset="70%" stop-color="#FF6B8B" stop-opacity="0.7"></stop>
+<stop offset="100%" stop-color="#FF4D6D" stop-opacity="0.1"></stop>
+</linearGradient>
+</defs>
+<!-- Organic Neural & Hemisphere Contours -->
+<path d="M130 38C94 38 68 62 68 98C68 116 75 130 84 142C80 152 76 166 84 182C93 200 110 216 130 220C150 216 167 200 176 182C184 166 180 152 176 142C185 130 192 116 192 98C192 62 166 38 130 38Z" fill="rgba(102, 0, 17, 0.15)" stroke="url(#neuralGlow)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path>
+<!-- Neural Network / Synaptic Lattice -->
+<!-- Left Lobe Pathways -->
+<path d="M130 52C108 52 92 68 92 92C92 115 106 128 116 140C110 156 108 174 130 200" opacity="0.85" stroke="url(#neuralGlow)" stroke-dasharray="3 3" stroke-width="1.8"></path>
+<path d="M102 78C85 90 85 116 98 128" opacity="0.7" stroke="#FFA3B1" stroke-linecap="round" stroke-width="1.5"></path>
+<path d="M110 160C96 172 108 190 122 198" opacity="0.6" stroke="#FF4D6D" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- Right Lobe Pathways -->
+<path d="M130 52C152 52 168 68 168 92C168 115 154 128 144 140C150 156 152 174 130 200" opacity="0.85" stroke="url(#neuralGlow)" stroke-dasharray="3 3" stroke-width="1.8"></path>
+<path d="M158 78C175 90 175 116 162 128" opacity="0.7" stroke="#FFA3B1" stroke-linecap="round" stroke-width="1.5"></path>
+<path d="M150 160C164 172 152 190 138 198" opacity="0.6" stroke="#FF4D6D" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- Synaptic Pulsing Nodes -->
+<circle class="animate-pulse" cx="130" cy="52" fill="#FFFFFF" r="3.5"></circle>
+<circle cx="92" cy="92" fill="#FFCCD5" r="3"></circle>
+<circle cx="168" cy="92" fill="#FFCCD5" r="3"></circle>
+<circle cx="116" cy="140" fill="#FF4D6D" r="3"></circle>
+<circle cx="144" cy="140" fill="#FF4D6D" r="3"></circle>
+<circle cx="102" cy="78" fill="#FFFFFF" r="2.5"></circle>
+<circle cx="158" cy="78" fill="#FFFFFF" r="2.5"></circle>
+<circle cx="130" cy="200" fill="#FFA3B1" r="3.5"></circle>
+<circle cx="130" cy="120" fill="#FFFFFF" r="4.5"></circle>
+<!-- Core Acoustic Soundwave (Transversal pulse matching the reference cardiogram wave) -->
+<path class="animate-waveform" d="M16 142H64L76 128L88 158L104 105L120 185L130 84L140 175L154 114L168 152L182 134L196 142H244" stroke="url(#waveformLine)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6"></path>
+</svg>
+</div>
+</div>
+<!-- Floating Micro Badges -->
+<div class="w-full flex items-center justify-between px-2 mt-1 mb-4" data-purpose="status-indicators">
+<!-- Metric 1 -->
+<div class="flex items-center space-x-1.5 py-1 px-3 rounded-full bg-white/10 backdrop-blur-md border border-white/15 shadow-sm text-xs font-medium text-white/90">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+<span>Precisión <strong class="text-white font-bold">96.8%</strong></span>
+</div>
+<!-- Metric 2 -->
+<div class="flex items-center space-x-1.5 py-1 px-3 rounded-full bg-white/10 backdrop-blur-md border border-white/15 shadow-sm text-xs font-medium text-white/90">
+<svg class="w-3.5 h-3.5 text-brand-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Tiempo <strong class="text-white font-bold">30s</strong></span>
+</div>
+</div>
+<!-- Typography Section -->
+<div class="text-left w-full px-1" data-purpose="hero-copywriting">
+<!-- Main Headline -->
+<h1 class="text-3xl leading-[1.18] font-bold tracking-tight text-white">
+          Tu Voz Revela la<br>
+<span class="text-brand-coral">Salud de Tu Cerebro</span>
+</h1>
+<!-- Descriptive Paragraph -->
+<p class="text-xs text-rose-100/75 leading-relaxed mt-3 max-w-[310px] font-normal">
+          Detección temprana y seguimiento de patrones neuromotores mediante análisis acústico asistido por Inteligencia Artificial.
+        </p>
+</div>
+</main>
+<!-- END: HeroVisualSection -->
+<!-- BEGIN: BottomActionSection -->
+<footer class="relative z-20 px-6 pb-safe pb-6 pt-2" data-purpose="call-to-action-container">
+<!-- Button Row Matching Reference Screen 1 Layout -->
+<div class="flex items-center space-x-3.5">
+<!-- Main CTA Button (Wide Pill) -->
+<button class="group flex-1 h-14 bg-white/10 hover:bg-white/15 active:scale-[0.98] transition-all duration-200 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-between px-6 shadow-[0_8px_20px_rgba(0,0,0,0.3)]" type="button">
+<span class="text-sm font-semibold tracking-wide text-white">Iniciar Evaluación</span>
+<!-- Circle with Arrow -->
+<div class="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center group-hover:translate-x-0.5 transition-transform duration-200">
+<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Secondary Action Button (Circular Pill Icon) -->
+<button aria-label="Historial y calibración biométrica" class="w-14 h-14 rounded-full bg-white flex items-center justify-center shadow-[0_8px_22px_rgba(255,77,109,0.35)] hover:scale-105 active:scale-95 transition-transform duration-200" type="button">
+<svg class="w-6 h-6 text-brand-crimson" fill="currentColor" viewBox="0 0 24 24">
+<!-- Stylized Heart/Waveform Pulse Icon -->
+<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path>
+</svg>
+</button>
+</div>
+<!-- iOS Home Indicator Line -->
+<div class="w-32 h-1 bg-white/30 rounded-full mx-auto mt-6"></div>
+</footer>
+<!-- END: BottomActionSection -->
+</div>
+<!-- END: MobileDeviceFrame -->
+</body></html>
